@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   core-tests:
     runs-on: ubuntu-latest
@@ -40,3 +43,10 @@ jobs:
         with:
           name: bujhechhi-apk
           path: app/build/outputs/apk/release/*.apk
+      - name: Publish release (সরাসরি ডাউনলোড লিংক)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/*.apk bujhechhi.apk
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest bujhechhi.apk --title "বুঝেছি? (সর্বশেষ)" --notes "ফোনে ডাউনলোড করে ইনস্টল করুন"
