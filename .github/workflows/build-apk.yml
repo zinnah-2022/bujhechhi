@@ -1,0 +1,39 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Kotlin compiler
+        run: |
+          curl -sSL -o kc.zip https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip
+          unzip -q kc.zip
+      - name: Core logic tests
+        run: |
+          ./kotlinc/bin/kotlinc app/src/main/java/com/edurip/bujhechhi/core/*.kt core-test/MemStore.kt core-test/CoreTest.kt -include-runtime -d core.jar
+          java -cp core.jar com.edurip.bujhechhi.core.CoreTestKt
+
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+      - name: Build release APK
+        run: gradle assembleRelease --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bujhechhi-apk
+          path: app/build/outputs/apk/release/*.apk

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">বুঝেছি?</string>
+    <string name="notif_channel">ক্লাস চলছে</string>
+    <string name="notif_title">ক্লাস চলছে</string>
+    <string name="notif_text">শিক্ষার্থীরা যুক্ত হতে পারছে। ক্লাস শেষ না করা পর্যন্ত অ্যাপ বন্ধ করবেন না।</string>
+</resources>

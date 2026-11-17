@@ -1,0 +1,7 @@
+{
+  "name": "bujhechhi-dev-tools",
+  "private": true,
+  "type": "module",
+  "description": "পরীক্ষার সরঞ্জাম (অ্যাপের অংশ নয়): আসল ClassCore-এর সাথে শিক্ষার্থীর পেজ ব্রাউজারে চালিয়ে দেখা",
+  "dependencies": { "ws": "^8.18.0" }
+}

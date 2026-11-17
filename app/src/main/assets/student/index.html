@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#4338ca">
+<link rel="icon" href="data:,">
+<title>বুঝেছি?</title>
+<style>
+@font-face{font-family:"BN";font-weight:400 600;font-display:swap;src:url(/f/noto-bn-400.woff2) format("woff2");unicode-range:U+0964-0965,U+0980-09FE,U+200C-200D,U+25CC}
+@font-face{font-family:"BN";font-weight:700 900;font-display:swap;src:url(/f/noto-bn-700.woff2) format("woff2");unicode-range:U+0964-0965,U+0980-09FE,U+200C-200D,U+25CC}
+:root{
+  --bg:#f3f4fb; --card:#ffffff; --ink:#1b1b2f; --mute:#6b6f85; --line:#e3e5f1;
+  --acc:#4338ca; --acc2:#6366f1; --accsoft:#eceafd;
+  --g:#16a34a; --gs:#e6f7ec; --y:#d97706; --ys:#fff4de; --r:#dc2626; --rs:#fde8e8;
+  --shadow:0 6px 24px rgba(40,40,90,.08);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1020; --card:#191a30; --ink:#eef0ff; --mute:#9a9fc0; --line:#2a2c4a;
+    --acc:#8b8cff; --acc2:#6366f1; --accsoft:#24265a;
+    --g:#34d399; --gs:#12372b; --y:#fbbf24; --ys:#3a2c0c; --r:#f87171; --rs:#40191c;
+    --shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"BN","Noto Sans Bengali","Hind Siliguri","Kalpurush","SolaimanLipi","Siyam Rupali","Nirmala UI",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:17px;line-height:1.5}
+body{min-height:100vh;min-height:100dvh}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:disabled{cursor:default}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px calc(28px + env(safe-area-inset-bottom))}
+
+/* header */
+header{position:sticky;top:0;z-index:5;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;
+  padding:calc(12px + env(safe-area-inset-top)) 16px 12px;box-shadow:0 4px 16px rgba(67,56,202,.35)}
+header .in{max-width:560px;margin:0 auto;display:flex;align-items:center;gap:10px}
+header h1{font-size:18px;margin:0;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:99px}
+.pill i{width:9px;height:9px;border-radius:50%;background:#4ade80;display:inline-block}
+.pill.off i{background:#fbbf24;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.3}}
+
+/* profile tabs */
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:14px 2px 6px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;padding:9px 16px;border-radius:99px;background:var(--card);border:2px solid var(--line);font-weight:600;font-size:16px;white-space:nowrap}
+.tab.on{background:var(--acc);border-color:var(--acc);color:#fff;box-shadow:0 4px 12px rgba(67,56,202,.35)}
+.tab.add{border-style:dashed;color:var(--acc);background:transparent}
+.who{margin:10px 2px 0;color:var(--mute);font-size:14px}
+.who b{color:var(--ink)}
+
+/* topic */
+.topic{margin-top:12px;background:var(--card);border-radius:20px;padding:18px 18px 20px;box-shadow:var(--shadow);border:1px solid var(--line);position:relative;overflow:hidden}
+.topic:before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(var(--acc),var(--acc2))}
+.topic .lbl{font-size:13px;color:var(--acc);font-weight:700;letter-spacing:.2px}
+.topic .txt{font-size:23px;font-weight:700;line-height:1.45;margin-top:4px;white-space:pre-wrap;word-break:break-word}
+.topic.empty .txt{color:var(--mute);font-weight:500;font-size:18px}
+.topic.flash{animation:flash 1.2s}
+@keyframes flash{0%{box-shadow:0 0 0 0 rgba(99,102,241,.7)}100%{box-shadow:0 0 0 22px rgba(99,102,241,0)}}
+
+.ask{margin:22px 4px 10px;font-size:19px;font-weight:700}
+
+/* feedback buttons */
+.fbs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.fb{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:132px;border-radius:22px;
+  padding:14px 6px;font-weight:700;font-size:16px;transition:transform .12s,box-shadow .12s,background .12s;border:3px solid transparent;text-align:center;line-height:1.25}
+.fb .dot{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;font-weight:800;font-style:normal}
+.fb.g{background:var(--gs);color:var(--g)} .fb.g .dot{background:var(--g)}
+.fb.y{background:var(--ys);color:var(--y)} .fb.y .dot{background:var(--y)}
+.fb.r{background:var(--rs);color:var(--r)} .fb.r .dot{background:var(--r)}
+.fb:active{transform:scale(.95)}
+.fb.sel{transform:scale(1.03);color:#fff}
+.fb.sel.g{background:var(--g);border-color:var(--g);box-shadow:0 10px 24px rgba(22,163,74,.4)}
+.fb.sel.y{background:var(--y);border-color:var(--y);box-shadow:0 10px 24px rgba(217,119,6,.4)}
+.fb.sel.r{background:var(--r);border-color:var(--r);box-shadow:0 10px 24px rgba(220,38,38,.4)}
+.fb.sel .dot{background:#fff}
+.fb.sel.g .dot{color:var(--g)} .fb.sel.y .dot{color:var(--y)} .fb.sel.r .dot{color:var(--r)}
+.fb:disabled{opacity:.5}
+.note{margin:14px 4px 0;color:var(--mute);font-size:14.5px;text-align:center;min-height:22px}
+.note b{color:var(--g)}
+
+.link{display:block;margin:26px auto 0;color:var(--mute);font-size:14px;text-decoration:underline;padding:6px}
+
+/* quiz */
+.qhead{display:flex;align-items:center;gap:10px;margin-top:14px}
+.qhead .t{flex:1;font-weight:700}
+.qhead .n{color:var(--mute);font-size:14px}
+.timer{margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 14px;display:flex;align-items:center;gap:12px}
+.timer .tm{font-size:22px;font-weight:800;min-width:64px;color:var(--acc);font-variant-numeric:tabular-nums}
+.timer .bar{flex:1;height:10px;border-radius:99px;background:var(--accsoft);overflow:hidden}
+.timer .bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));border-radius:99px;transition:width .25s linear}
+.timer.low .tm{color:var(--r)} .timer.low .bar i{background:var(--r)}
+.timer.done{color:var(--mute);justify-content:center;font-weight:700}
+.qcard{margin-top:14px;background:var(--card);border-radius:20px;padding:16px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.qcard .qi{font-size:13px;color:var(--acc);font-weight:700}
+.qcard .qt{font-size:20px;font-weight:700;margin:2px 0 12px;white-space:pre-wrap;word-break:break-word}
+.opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px;margin-top:9px;border-radius:16px;
+  background:var(--bg);border:2.5px solid var(--line);font-size:18px;transition:transform .1s,border-color .1s,background .1s}
+.opt b{flex:0 0 34px;height:34px;border-radius:50%;background:var(--card);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px}
+.opt span{flex:1;word-break:break-word}
+.opt em{font-style:normal;font-weight:800;font-size:20px}
+.opt:not(:disabled):active{transform:scale(.98)}
+.opt.sel{border-color:var(--acc);background:var(--accsoft)}
+.opt.sel b{background:var(--acc);border-color:var(--acc);color:#fff}
+.opt.right{border-color:var(--g);background:var(--gs)} .opt.right b{background:var(--g);border-color:var(--g);color:#fff} .opt.right em{color:var(--g)}
+.opt.wrong{border-color:var(--r);background:var(--rs)} .opt.wrong b{background:var(--r);border-color:var(--r);color:#fff} .opt.wrong em{color:var(--r)}
+.expl{margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--accsoft);font-size:16px}
+.expl b{color:var(--acc)}
+.score{margin-top:16px;text-align:center;font-size:20px;font-weight:800;padding:16px;border-radius:18px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
+.prog{margin:12px 4px 0;color:var(--mute);font-size:14.5px;text-align:center}
+
+/* screens */
+.center{min-height:calc(100dvh - 40px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:24px}
+.logo{font-size:64px;line-height:1}
+.center h2{margin:0;font-size:28px}
+.center p{margin:0;color:var(--mute);max-width:340px}
+.codein{font-size:38px;letter-spacing:12px;text-align:center;width:230px;padding:12px 8px 12px 20px;border-radius:18px;border:3px solid var(--line);background:var(--card);color:var(--ink);font-family:inherit;font-variant-numeric:tabular-nums}
+.codein:focus{outline:none;border-color:var(--acc)}
+.primary{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-weight:700;padding:14px 26px;border-radius:16px;font-size:18px;box-shadow:0 8px 20px rgba(67,56,202,.35)}
+.primary:disabled{opacity:.6}
+.ghost{padding:14px 20px;border-radius:16px;font-weight:600;color:var(--mute);background:var(--bg)}
+.err{color:var(--r);font-weight:600;min-height:22px;font-size:15px}
+.spin{width:44px;height:44px;border-radius:50%;border:5px solid var(--accsoft);border-top-color:var(--acc);animation:sp 0.9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* join sheet */
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(10,10,30,.55);display:flex;align-items:flex-end;justify-content:center}
+.sheet[hidden]{display:none}
+.panel{width:100%;max-width:560px;background:var(--card);border-radius:26px 26px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.3);max-height:88dvh;overflow:auto;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.panel h2{margin:0 0 12px;font-size:21px}
+.panel input{width:100%;font:inherit;font-size:20px;padding:14px 16px;border-radius:16px;border:3px solid var(--line);background:var(--bg);color:var(--ink)}
+.panel input:focus{outline:none;border-color:var(--acc)}
+.sugs{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px;max-height:34dvh;overflow:auto}
+.sug{padding:8px 14px;border-radius:99px;background:var(--accsoft);color:var(--acc);font-weight:600;font-size:16px}
+.sug:disabled{background:var(--bg);color:var(--mute);text-decoration:line-through}
+.sugh{font-size:13px;color:var(--mute);margin-top:12px}
+.row{display:flex;gap:10px;margin-top:14px}
+.row .primary{flex:1}
+
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,30px);background:#1f2040;color:#fff;
+  padding:11px 18px;border-radius:14px;font-size:15.5px;opacity:0;pointer-events:none;transition:all .25s;z-index:40;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+.netbar{background:#fef3c7;color:#92400e;text-align:center;font-size:14px;padding:6px 10px;font-weight:600}
+@media (prefers-color-scheme:dark){.netbar{background:#473510;color:#fcd34d}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="sheet" class="sheet" hidden>
+  <div class="panel" role="dialog" aria-modal="true">
+    <h2 id="sheetTitle">নাম লিখে যোগ দিন</h2>
+    <input id="nameIn" type="text" placeholder="তোমার নাম" autocomplete="off" autocapitalize="words" maxlength="40" enterkeyhint="done">
+    <div id="sugWrap"></div>
+    <div id="sheetErr" class="err"></div>
+    <div class="row">
+      <button id="sheetClose" class="ghost" type="button">বাদ দিন</button>
+      <button id="joinBtn" class="primary" type="button">যোগ দিন</button>
+    </div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+'use strict';
+
+var $ = function (s) { return document.querySelector(s); };
+var BN = '০১২৩৪৫৬৭৮৯';
+function bn(n) { return String(n).replace(/\d/g, function (d) { return BN[d]; }); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function nfc(s) { try { return String(s).normalize('NFC'); } catch (e) { return String(s); } }
+var LET = ['ক', 'খ', 'গ', 'ঘ', 'ঙ', 'চ'];
+
+function rand() {
+  var a = new Uint8Array(12);
+  (window.crypto || window.msCrypto).getRandomValues(a);
+  return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+}
+function getCid() {
+  try {
+    var c = localStorage.getItem('bj_cid');
+    if (!c || !/^[A-Za-z0-9_-]{6,64}$/.test(c)) { c = rand(); localStorage.setItem('bj_cid', c); }
+    return c;
+  } catch (e) { return rand(); }
+}
+var CID = getCid();
+
+// ---------------------------------------------------------------- অবস্থা
+var code = (new URLSearchParams(location.search).get('c') || '').replace(/\D/g, '').slice(0, 4);
+var S = null;            // সার্ভার থেকে সর্বশেষ state
+var recvAt = 0;
+var active = null;       // সক্রিয় প্রোফাইলের sid
+var phase = code.length === 4 ? 'connecting' : 'code'; // code | connecting | live | ended
+var waitMsg = '';
+var codeErr = '';
+var ws = null, retry = 0, retryTimer = 0, online = false, lastMsg = 0, lastTid = null;
+var roster = [], sheetOpen = false;
+
+// ---------------------------------------------------------------- সংযোগ
+function send(o) {
+  if (ws && ws.readyState === 1) { ws.send(JSON.stringify(o)); return true; }
+  return false;
+}
+
+function connect() {
+  clearTimeout(retryTimer);
+  if (code.length !== 4) return;
+  try { if (ws) { var old = ws; ws = null; old.close(); } } catch (e) {}
+  var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  var mine;
+  try { mine = ws = new WebSocket(proto + '://' + location.host + '/ws'); }
+  catch (e) { scheduleRetry(); return; }
+  mine.onopen = function () {
+    if (mine !== ws) return;
+    lastMsg = Date.now();
+    send({ t: 'hello', cid: CID, code: code });
+  };
+  mine.onmessage = function (e) {
+    if (mine !== ws) return;
+    lastMsg = Date.now();
+    var m; try { m = JSON.parse(e.data); } catch (x) { return; }
+    handle(m);
+  };
+  mine.onclose = function () {
+    if (mine !== ws) return;
+    online = false;
+    if (phase === 'live' || phase === 'connecting') { scheduleRetry(); render(); }
+  };
+  mine.onerror = function () {};
+}
+
+function scheduleRetry() {
+  clearTimeout(retryTimer);
+  retry = Math.min(retry + 1, 5);
+  retryTimer = setTimeout(connect, 600 * retry);
+}
+
+function handle(m) {
+  switch (m.t) {
+    case 'state':
+      S = m; recvAt = performance.now(); online = true; retry = 0; phase = 'live'; waitMsg = '';
+      if (m.profiles.length) {
+        if (!m.profiles.some(function (p) { return p.sid === active; })) active = m.profiles[0].sid;
+      } else active = null;
+      var tidChanged = lastTid !== null && lastTid !== m.tid && m.tid !== 0;
+      lastTid = m.tid;
+      render();
+      if (tidChanged) { flashTopic(); buzz(60); }
+      if (!m.profiles.length && !sheetOpen) openSheet();
+      else if (m.profiles.length && sheetOpen && sheetJoinedPending) closeSheet();
+      break;
+    case 'joined':
+      active = m.sid; sheetJoinedPending = true; break;
+    case 'roster':
+      roster = m.list || []; renderSugs(); break;
+    case 'ended':
+      phase = 'ended'; online = false; try { ws && ws.close(); } catch (e) {} ws = null; closeSheet(); render(); break;
+    case 'pong': break;
+    case 'err': onErr(m.c); break;
+  }
+}
+
+var sheetJoinedPending = false;
+
+function onErr(c) {
+  var joinErrs = {
+    taken: 'এই নামে অন্য ডিভাইসে আগেই যুক্ত আছে। শিক্ষককে জানান।',
+    limit: 'এক ফোনে সর্বোচ্চ ৬ জন যোগ করা যায়।',
+    badname: 'সঠিক নাম লিখুন।',
+    full: 'ক্লাসে আর জায়গা নেই।'
+  };
+  if (joinErrs[c]) { setSheetErr(joinErrs[c]); resetJoinBtn(); return; }
+  if (c === 'notopic') { toast('শিক্ষক এখনও কোনো বিষয় দেননি'); return; }
+  if (c === 'badcode') {
+    codeErr = 'কোড মেলেনি। শিক্ষকের স্ক্রিনের কোডটি আবার দিন।';
+    phase = 'code'; code = ''; online = false;
+    try { ws && ws.close(); } catch (e) {} ws = null;
+    render(); return;
+  }
+  if (c === 'nosession') {
+    waitMsg = 'ক্লাস এখনও শুরু হয়নি। একটু অপেক্ষা করুন…';
+    phase = 'connecting'; render();
+    try { var w = ws; ws = null; w && w.close(); } catch (e) {}
+    clearTimeout(retryTimer); retryTimer = setTimeout(connect, 2500);
+  }
+}
+
+// হার্টবিট — ফোন ঘুমিয়ে গেলে বা ওয়াইফাই ছাড়লে ধরার জন্য
+setInterval(function () {
+  if (ws && ws.readyState === 1) {
+    send({ t: 'ping' });
+    if (Date.now() - lastMsg > 40000) { try { ws.close(); } catch (e) {} }
+  }
+}, 10000);
+function wake() { if (phase !== 'code' && phase !== 'ended' && (!ws || ws.readyState > 1)) { retry = 0; connect(); } }
+document.addEventListener('visibilitychange', function () { if (!document.hidden) wake(); });
+window.addEventListener('online', wake);
+
+// ---------------------------------------------------------------- হেল্পার
+function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+var toastTimer = 0;
+function toast(msg) {
+  var t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2600);
+}
+function flashTopic() {
+  var el = $('#topicCard'); if (!el) return;
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+function activeProfile() {
+  if (!S) return null;
+  for (var i = 0; i < S.profiles.length; i++) if (S.profiles[i].sid === active) return S.profiles[i];
+  return null;
+}
+function fmt(ms) {
+  var s = Math.max(0, Math.ceil(ms / 1000));
+  return bn(Math.floor(s / 60)) + ':' + bn(('0' + (s % 60)).slice(-2));
+}
+
+// ---------------------------------------------------------------- রেন্ডার
+function render() {
+  var app = $('#app');
+  if (phase === 'code') { app.innerHTML = codeScreen(); var ci = $('#codeIn'); if (ci) setTimeout(function () { ci.focus(); }, 60); return; }
+  if (phase === 'ended') {
+    app.innerHTML = '<div class="center"><div class="logo">🎓</div><h2>ক্লাস শেষ</h2><p>ধন্যবাদ! আজকের ক্লাসে অংশ নেওয়ার জন্য।</p></div>';
+    return;
+  }
+  if (phase === 'connecting' || !S) {
+    app.innerHTML = '<div class="center"><div class="spin"></div><p>' + esc(waitMsg || 'শিক্ষকের সাথে যুক্ত হচ্ছে…') + '</p></div>';
+    return;
+  }
+  app.innerHTML = liveScreen();
+  updateTimer();
+}
+
+function codeScreen() {
+  return '<div class="center">' +
+    '<div class="logo">🙋</div><h2>বুঝেছি?</h2>' +
+    '<p>শিক্ষকের স্ক্রিনে দেখানো ৪ সংখ্যার কোড লিখুন</p>' +
+    '<input id="codeIn" class="codein" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">' +
+    '<div class="err">' + esc(codeErr) + '</div>' +
+    '<button class="primary" data-act="code">যুক্ত হোন</button></div>';
+}
+
+function liveScreen() {
+  var P = activeProfile();
+  var h = '<header><div class="in"><h1>' + esc(S.title) + '</h1>' +
+    '<span class="pill ' + (online ? '' : 'off') + '"><i></i>' + (online ? 'যুক্ত' : 'সংযোগ হারিয়েছে') + '</span></div></header>';
+  if (!online) h += '<div class="netbar">সংযোগ ফিরিয়ে আনার চেষ্টা চলছে…</div>';
+  h += '<div class="wrap">';
+  if (S.profiles.length) {
+    h += '<div class="tabs">';
+    S.profiles.forEach(function (p) {
+      h += '<button class="tab' + (p.sid === active ? ' on' : '') + '" data-act="tab" data-sid="' + p.sid + '">' + esc(p.name) + '</button>';
+    });
+    h += '<button class="tab add" data-act="add">＋ আরেকজন</button></div>';
+  }
+  if (P) {
+    h += (S.quiz ? quizView(P) : feedbackView(P));
+    h += '<button class="link" data-act="leave">ভুল নাম? “' + esc(P.name) + '” সরিয়ে দিন</button>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function feedbackView(P) {
+  var has = !!S.topic;
+  var h = '<section id="topicCard" class="topic' + (has ? '' : ' empty') + '"><div class="lbl">এখন আলোচনা হচ্ছে</div>' +
+    '<div class="txt">' + (has ? esc(S.topic) : 'শিক্ষক বিষয় দিলে এখানে দেখা যাবে') + '</div></section>';
+  h += '<div class="ask">' + esc(P.name) + ', বিষয়টা বুঝেছ?</div><div class="fbs">';
+  [['G', 'g', '✓', 'বুঝেছি'], ['Y', 'y', '≈', 'একটু বুঝেছি'], ['R', 'r', '✕', 'বুঝিনি']].forEach(function (b) {
+    h += '<button class="fb ' + b[1] + (P.fb === b[0] ? ' sel' : '') + '" data-act="fb" data-v="' + b[0] + '"' + (has ? '' : ' disabled') +
+      ' aria-pressed="' + (P.fb === b[0]) + '"><i class="dot">' + b[2] + '</i>' + b[3] + '</button>';
+  });
+  h += '</div><div class="note">' +
+    (P.fb ? '<b>✓ জানানো হয়েছে</b> — মত বদলালে অন্য বাটন চাপুন' : (has ? 'লজ্জার কিছু নেই — শুধু শিক্ষক দেখবেন' : '')) + '</div>';
+  return h;
+}
+
+function quizView(P) {
+  var q = S.quiz, rev = {};
+  q.rev.forEach(function (r) { rev[r.i] = r; });
+  var a = P.a || {};
+  var h = '<div class="qhead"><div class="t">📝 ' + esc(q.title) + '</div>' +
+    '<div class="n">' + (q.mode === 'step' ? 'প্রশ্ন ' + bn(q.cur + 1) + '/' + bn(q.n) : bn(q.n) + 'টি প্রশ্ন') + '</div></div>';
+  if (q.status === 'running') {
+    h += '<div class="timer" id="timer"><div class="tm" id="tm">' + fmt(q.remain) + '</div><div class="bar"><i id="bar"></i></div></div>';
+  } else if (q.status === 'locked') {
+    h += '<div class="timer done">⏱ সময় শেষ — শিক্ষক উত্তর দেখাবেন</div>';
+  } else {
+    h += '<div class="timer done">✅ সঠিক উত্তর দেখানো হচ্ছে</div>';
+  }
+  var from = q.mode === 'step' ? q.cur : 0, to = q.mode === 'step' ? q.cur : q.n - 1;
+  for (var i = from; i <= to; i++) {
+    var item = q.qs[i]; if (!item) continue;
+    h += '<div class="qcard"><div class="qi">প্রশ্ন ' + bn(i + 1) + '</div><div class="qt">' + esc(item.q) + '</div>';
+    var mine = a[String(i)], r = rev[i], can = q.status === 'running';
+    item.o.forEach(function (t, oi) {
+      var cls = 'opt', mark = '';
+      if (mine === oi) cls += ' sel';
+      if (r) {
+        if (oi === r.c) { cls += ' right'; mark = '✓'; }
+        else if (mine === oi) { cls += ' wrong'; mark = '✕'; }
+      }
+      h += '<button class="' + cls + '" data-act="ans" data-q="' + i + '" data-o="' + oi + '"' + (can ? '' : ' disabled') +
+        '><b>' + LET[oi] + '</b><span>' + esc(t) + '</span><em>' + mark + '</em></button>';
+    });
+    if (r) {
+      h += '<div class="expl">' + (mine === undefined ? '<b>উত্তর দেওয়া হয়নি।</b> ' : (mine === r.c ? '<b>সঠিক! 🎉</b> ' : '<b>ভুল হয়েছে।</b> ')) +
+        'সঠিক উত্তর: <b>' + LET[r.c] + '</b> ' + esc(item.o[r.c]) + (r.e ? '<br>' + esc(r.e) : '') + '</div>';
+    }
+    h += '</div>';
+  }
+  var done = Object.keys(a).length;
+  if (q.mode === 'all' && q.status === 'running') h += '<div class="prog">' + bn(done) + '/' + bn(q.n) + 'টির উত্তর দেওয়া হয়েছে</div>';
+  if (q.status === 'reveal') {
+    var ok = 0, tot = q.rev.length;
+    q.rev.forEach(function (r) { if (a[String(r.i)] === r.c) ok++; });
+    if (tot) h += '<div class="score">' + esc(P.name) + '-এর স্কোর: ' + bn(ok) + '/' + bn(tot) + '</div>';
+  }
+  return h;
+}
+
+function updateTimer() {
+  if (!S || !S.quiz || S.quiz.status !== 'running') return;
+  var tm = $('#tm'); if (!tm) return;
+  var left = Math.max(0, S.quiz.remain - (performance.now() - recvAt));
+  tm.textContent = fmt(left);
+  var bar = $('#bar');
+  if (bar) bar.style.width = Math.min(100, (S.quiz.total > 0 ? left / S.quiz.total * 100 : 0)) + '%';
+  var t = $('#timer'); if (t) t.classList.toggle('low', left < 6000);
+}
+setInterval(updateTimer, 250);
+
+// ---------------------------------------------------------------- ক্লিক
+document.addEventListener('click', function (e) {
+  var el = e.target.closest ? e.target.closest('[data-act]') : null;
+  if (!el || el.disabled) return;
+  var act = el.getAttribute('data-act');
+  var P = activeProfile();
+  if (act === 'code') { submitCode(); }
+  else if (act === 'tab') { active = Number(el.getAttribute('data-sid')); render(); }
+  else if (act === 'add') { openSheet(); }
+  else if (act === 'fb' && P) {
+    var v = el.getAttribute('data-v');
+    if (!send({ t: 'fb', sid: P.sid, v: v })) { toast('সংযোগ নেই, একটু অপেক্ষা করুন'); return; }
+    P.fb = v; buzz(25); render();
+  } else if (act === 'ans' && P) {
+    var qi = Number(el.getAttribute('data-q')), oi = Number(el.getAttribute('data-o'));
+    if (!send({ t: 'ans', sid: P.sid, q: qi, o: oi })) { toast('সংযোগ নেই, একটু অপেক্ষা করুন'); return; }
+    if (!P.a) P.a = {};
+    P.a[String(qi)] = oi; buzz(20); render();
+  } else if (act === 'leave' && P) {
+    if (confirm('“' + P.name + '” নামটি এই ফোন থেকে সরিয়ে দেবেন?')) send({ t: 'leave', sid: P.sid });
+  }
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') {
+    if (e.target && e.target.id === 'codeIn') submitCode();
+    if (e.target && e.target.id === 'nameIn') submitJoin();
+  }
+});
+document.addEventListener('input', function (e) {
+  if (e.target && e.target.id === 'codeIn') {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (e.target.value.length === 4) submitCode();
+  }
+  if (e.target && e.target.id === 'nameIn') { setSheetErr(''); renderSugs(); }
+});
+
+function submitCode() {
+  var v = ($('#codeIn') || {}).value || '';
+  v = v.replace(/\D/g, '');
+  if (v.length !== 4) { codeErr = '৪ সংখ্যার কোড লিখুন'; render(); return; }
+  code = v; codeErr = ''; phase = 'connecting'; retry = 0;
+  try { history.replaceState(null, '', '?c=' + code); } catch (e) {}
+  render(); connect();
+}
+
+// ---------------------------------------------------------------- নাম যোগ করার শিট
+function openSheet() {
+  sheetOpen = true; sheetJoinedPending = false;
+  var has = S && S.profiles.length > 0;
+  $('#sheetTitle').textContent = has ? 'আরেকজনের নাম' : 'নাম লিখে যোগ দিন';
+  $('#sheetClose').style.display = has ? '' : 'none';
+  $('#nameIn').value = ''; setSheetErr(''); resetJoinBtn(); renderSugs();
+  $('#sheet').hidden = false;
+  send({ t: 'roster' });
+  setTimeout(function () { $('#nameIn').focus(); }, 80);
+}
+function closeSheet() { sheetOpen = false; sheetJoinedPending = false; $('#sheet').hidden = true; try { $('#nameIn').blur(); } catch (e) {} }
+function setSheetErr(m) { $('#sheetErr').textContent = m || ''; }
+function resetJoinBtn() { var b = $('#joinBtn'); b.disabled = false; b.textContent = 'যোগ দিন'; }
+function renderSugs() {
+  var typed = nfc($('#nameIn').value || '').trim().toLowerCase();
+  var list = roster.filter(function (r) { return !typed || nfc(r.n).toLowerCase().indexOf(typed) >= 0; }).slice(0, 40);
+  var w = $('#sugWrap');
+  if (!roster.length) { w.innerHTML = ''; return; }
+  var h = '<div class="sugh">তালিকা থেকে নিজের নাম বেছে নিতে পারো:</div><div class="sugs">';
+  list.forEach(function (r) {
+    h += '<button type="button" class="sug" data-name="' + esc(r.n) + '"' + (r.j ? ' disabled' : '') + '>' + esc(r.n) + '</button>';
+  });
+  w.innerHTML = h + (list.length ? '' : '<span class="sugh">মিলছে না — নিজের নাম লিখে “যোগ দিন” চাপুন</span>') + '</div>';
+}
+function submitJoin() {
+  var name = nfc($('#nameIn').value || '').trim().replace(/\s+/g, ' ');
+  if (!name) { setSheetErr('নাম লিখুন'); return; }
+  var b = $('#joinBtn'); b.disabled = true; b.textContent = '…';
+  if (!send({ t: 'join', name: name })) { setSheetErr('সংযোগ নেই, একটু পরে চেষ্টা করুন'); resetJoinBtn(); }
+  else setTimeout(function () { if (sheetOpen) resetJoinBtn(); }, 2500);
+}
+$('#joinBtn').addEventListener('click', submitJoin);
+$('#sheetClose').addEventListener('click', closeSheet);
+$('#sugWrap').addEventListener('click', function (e) {
+  var b = e.target.closest ? e.target.closest('.sug') : null;
+  if (!b || b.disabled) return;
+  $('#nameIn').value = b.getAttribute('data-name'); submitJoin();
+});
+
+// ---------------------------------------------------------------- শুরু
+render();
+if (phase === 'connecting') connect();
+})();
+</script>
+</body>
+</html>
