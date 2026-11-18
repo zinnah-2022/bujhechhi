@@ -95,34 +95,74 @@ object AiQuiz {
         images: List<Img> = emptyList(),
     ): List<Question> {
         if (apiKey.isBlank()) throw IllegalStateException("সেটিংসে API কী দিন")
-        val conn = URL("https://api.anthropic.com/v1/messages").openConnection() as HttpURLConnection
+        val key = apiKey.trim()
+        val gemini = isGeminiKey(key)
+        val prompt = buildPrompt(topic, count, level, extra, images.isNotEmpty())
+        val url: String
+        val payload: String
+        if (gemini) {
+            val m = if (model.isBlank() || model.startsWith("claude")) GEMINI_MODEL else model.trim()
+            url = "https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent"
+            payload = buildGeminiBody(prompt, images)
+        } else {
+            url = "https://api.anthropic.com/v1/messages"
+            payload = buildRequestBody(model.ifBlank { DEFAULT_MODEL }, prompt, images)
+        }
+        val conn = URL(url).openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
             conn.connectTimeout = 15000
             conn.readTimeout = 120000
             conn.doOutput = true
             conn.setRequestProperty("content-type", "application/json")
-            conn.setRequestProperty("x-api-key", apiKey.trim())
-            conn.setRequestProperty("anthropic-version", "2023-06-01")
-            conn.outputStream.use { it.write(buildRequestBody(model.ifBlank { DEFAULT_MODEL }, buildPrompt(topic, count, level, extra, images.isNotEmpty()), images).toByteArray(Charsets.UTF_8)) }
+            if (gemini) {
+                conn.setRequestProperty("x-goog-api-key", key)
+            } else {
+                conn.setRequestProperty("x-api-key", key)
+                conn.setRequestProperty("anthropic-version", "2023-06-01")
+            }
+            conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
             if (code !in 200..299) {
                 val msg = Json.parseOrNull(body).asMap()?.get("error").asMap()?.str("message") ?: "HTTP $code"
                 throw IllegalStateException(
-                    when (code) {
-                        401 -> "API কী ভুল"
-                        429 -> "অনেক বেশি অনুরোধ, একটু পরে চেষ্টা করুন"
+                    when {
+                        code == 401 || (gemini && msg.contains("API key", ignoreCase = true)) -> "API কী ভুল"
+                        code == 429 -> "অনেক বেশি অনুরোধ বা দৈনিক সীমা শেষ, একটু পরে চেষ্টা করুন"
                         else -> msg
                     },
                 )
             }
-            val qs = parseQuestions(extractText(body))
+            val qs = parseQuestions(if (gemini) extractGeminiText(body) else extractText(body))
             if (qs.isEmpty()) throw IllegalStateException("প্রশ্ন বানানো যায়নি, আবার চেষ্টা করুন")
             return qs
         } finally {
             conn.disconnect()
         }
+    }
+
+    const val GEMINI_MODEL = "gemini-flash-latest"
+
+    /** Google (Gemini) কী `AIza` দিয়ে শুরু হয়; Anthropic কী `sk-ant-` দিয়ে। */
+    fun isGeminiKey(key: String): Boolean = key.trim().startsWith("AIza")
+
+    fun buildGeminiBody(prompt: String, images: List<Img> = emptyList()): String {
+        val parts = images.map { mapOf("inline_data" to mapOf("mime_type" to it.mime, "data" to it.base64)) } +
+            listOf(mapOf("text" to prompt))
+        return Json.write(
+            mapOf(
+                "contents" to listOf(mapOf("role" to "user", "parts" to parts)),
+                "generationConfig" to mapOf("temperature" to 0.7, "maxOutputTokens" to 8192),
+            ),
+        )
+    }
+
+    fun extractGeminiText(responseBody: String): String {
+        val m = Json.parseOrNull(responseBody).asMap() ?: return ""
+        val cand = m["candidates"].asList()?.firstOrNull().asMap() ?: return ""
+        val parts = cand["content"].asMap()?.get("parts").asList() ?: return ""
+        return parts.mapNotNull { it.asMap()?.str("text") }.joinToString("")
     }
 }

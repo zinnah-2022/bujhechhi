@@ -527,7 +527,7 @@ private fun SettingsTab() {
 
         BjCard {
             Text("✨ AI দিয়ে MCQ বানানো", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Muted("ঐচ্ছিক। নিজের Anthropic API কী দিলে টপিক লিখে প্রশ্ন বানিয়ে নিতে পারবেন। শুধু প্রশ্ন বানানোর সময় ইন্টারনেট লাগে, ক্লাসে নয়। কী শুধু এই ফোনে থাকে।")
+            Muted("ঐচ্ছিক। নিজের API কী (Anthropic `sk-ant-…` অথবা Google Gemini `AIza…`) দিলে টপিক লিখে প্রশ্ন বানিয়ে নিতে পারবেন। শুধু প্রশ্ন বানানোর সময় ইন্টারনেট লাগে, ক্লাসে নয়। কী শুধু এই ফোনে থাকে।")
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = key,
