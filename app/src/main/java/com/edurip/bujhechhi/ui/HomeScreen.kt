@@ -187,10 +187,6 @@ private fun StartTab() {
             Step("১", "ফোনের হটস্পট চালু করুন (অথবা কোচিংয়ের ওয়াইফাই রাউটারে যুক্ত হোন)। ইন্টারনেট না থাকলেও চলবে।")
             Step("২", "“ক্লাস শুরু করুন” চাপুন। একটি QR কোড ও ৪ সংখ্যার কোড আসবে।")
             Step("৩", "শিক্ষার্থীরা ওয়াইফাইতে যুক্ত হয়ে QR স্ক্যান করবে, কোনো অ্যাপ ইনস্টল লাগবে না।")
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(onClick = { openHotspotSettings(ctx) }, modifier = Modifier.fillMaxWidth()) {
-                Text("হটস্পট সেটিংস খুলুন")
-            }
         }
     }
 }
