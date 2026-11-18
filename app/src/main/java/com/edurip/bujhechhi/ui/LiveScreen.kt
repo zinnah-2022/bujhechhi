@@ -315,17 +315,28 @@ private fun TopicComposer(live: LiveSnapshot) {
     var text by rememberSaveable { mutableStateOf("") }
     var open by rememberSaveable { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxWidth()) {
-        PrimaryButton("📤  শিক্ষার্থীদের পাঠ / বিষয় পাঠান", { open = true }, Modifier.fillMaxWidth())
-        if (live.topic.isNotEmpty()) {
-            Text(
-                "এখন চলছে (বিষয় ${bn(live.topicNo)}): ${live.topic}",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
-            )
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            if (live.topic.isNotEmpty()) "চলতি কাজ: ${live.topic}" else "চলতি কাজ: এখনও দেওয়া হয়নি",
+            modifier = Modifier.weight(1f),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(Brush.horizontalGradient(listOf(Indigo, Indigo2)))
+                .clickable { open = true }
+                .padding(horizontal = 14.dp, vertical = 9.dp),
+        ) {
+            Text("📤 পাঠান", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
     }
 
