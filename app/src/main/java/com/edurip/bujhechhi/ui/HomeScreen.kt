@@ -8,6 +8,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -256,13 +258,21 @@ private fun QuizTab(onEditQuiz: (Long) -> Unit) {
             BjCard { Muted("এখনও কোনো কুইজ নেই। উপরের বাটন চেপে বানান, চাইলে AI দিয়েও বানাতে পারবেন।", size = 15) }
         } else {
             list.forEach { s ->
-                BjCard(onClick = { onEditQuiz(s.id) }) {
-                    Text(s.title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                    Muted("${bn(s.questions.size)}টি প্রশ্ন")
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { onEditQuiz(s.id) }) { Text("সম্পাদনা") }
-                        TextButton(onClick = { delete = s }) { Text("মুছুন", color = Red) }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .clickable { onEditQuiz(s.id) }
+                        .padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(s.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Muted("${bn(s.questions.size)}টি প্রশ্ন", size = 12)
                     }
+                    TextButton(onClick = { onEditQuiz(s.id) }, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("সম্পাদনা", fontSize = 13.sp) }
+                    TextButton(onClick = { delete = s }, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("মুছুন", color = Red, fontSize = 13.sp) }
                 }
             }
         }
