@@ -133,22 +133,27 @@ private fun StartTab() {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(Brush.linearGradient(listOf(Indigo, Indigo2)))
-                .padding(22.dp),
-        ) {
-            Column {
-                Text("বুঝেছি?", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "কে বুঝেনি, সেটা লজ্জা ছাড়াই জানুন — ক্লাস চলতে চলতেই।",
-                    color = Color.White.copy(alpha = 0.92f),
-                    fontSize = 16.sp,
-                )
-            }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {
+            Text(
+                "বুঝেছি?",
+                fontSize = 40.sp,
+                fontWeight = FontWeight.ExtraBold,
+                style = androidx.compose.ui.text.TextStyle(
+                    brush = Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFFEC4899), Color(0xFFF59E0B))),
+                ),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                androidx.compose.ui.text.buildAnnotatedString {
+                    append("কে বুঝেনি, সেটা ")
+                    pushStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFFEC4899), fontWeight = FontWeight.Bold))
+                    append("লজ্জা ছাড়াই")
+                    pop()
+                    append(" জানুন — ক্লাস চলতে চলতেই।")
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 16.sp,
+            )
         }
 
         BjCard {
@@ -202,19 +207,28 @@ private fun Step(n: String, text: String) {
 }
 
 fun openHotspotSettings(ctx: Context) {
-    try {
-        val i = Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings")
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        ctx.startActivity(i)
-    } catch (e: Exception) {
+    val tries = listOf(
+        Intent("com.android.settings.TETHER_SETTINGS"),
+        Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings"),
+        Intent().setClassName("com.android.settings", "com.android.settings.Settings\$TetherSettingsActivity"),
+        Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS),
+        Intent(android.provider.Settings.ACTION_WIFI_SETTINGS),
+        Intent(android.provider.Settings.ACTION_SETTINGS),
+    )
+    for (i in tries) {
         try {
-            val i = Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             ctx.startActivity(i)
-        } catch (e2: Exception) {
-            // সেটিংস খোলা না গেলে কিছু করার নেই
+            return
+        } catch (e: Exception) {
+            // পরেরটা চেষ্টা
         }
     }
+    android.widget.Toast.makeText(
+        ctx,
+        "সেটিংস খোলা যায়নি। ফোনের সেটিংস > হটস্পট থেকে নিজে চালু করুন।",
+        android.widget.Toast.LENGTH_LONG,
+    ).show()
 }
 
 // ------------------------------------------------------------------ কুইজ ব্যাংক
