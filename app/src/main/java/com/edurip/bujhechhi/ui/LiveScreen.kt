@@ -222,9 +222,22 @@ private fun FeedbackTab(live: LiveSnapshot) {
         item(span = { GridItemSpan(maxLineSpan) }) { SummaryCard(live) }
         item(span = { GridItemSpan(maxLineSpan) }) { TopicComposer(live) }
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionTitle("শিক্ষার্থী (${bn(live.students.size)})", Modifier.weight(1f))
-                Text("লাল আগে", fontSize = 14.sp)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Brush.horizontalGradient(listOf(Indigo, Indigo2)))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "শিক্ষার্থী (${bn(live.students.size)})",
+                    modifier = Modifier.weight(1f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.White,
+                )
+                Text("লাল আগে", fontSize = 14.sp, color = Color.White)
                 Spacer(Modifier.width(8.dp))
                 Switch(checked = redFirst, onCheckedChange = { redFirst = it })
             }
@@ -300,49 +313,74 @@ private fun Count(label: String, n: Int, color: Color) {
 @Composable
 private fun TopicComposer(live: LiveSnapshot) {
     var text by rememberSaveable { mutableStateOf("") }
-    BjCard {
+    var open by rememberSaveable { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxWidth()) {
+        PrimaryButton("📤  শিক্ষার্থীদের পাঠ / বিষয় পাঠান", { open = true }, Modifier.fillMaxWidth())
         if (live.topic.isNotEmpty()) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(12.dp),
-            ) {
-                Column {
-                    Text("এখন চলছে (বিষয় ${bn(live.topicNo)})", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    Text(live.topic, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-            Spacer(Modifier.height(12.dp))
+            Text(
+                "এখন চলছে (বিষয় ${bn(live.topicNo)}): ${live.topic}",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp),
+            )
         }
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            label = { Text(if (live.topic.isEmpty()) "প্রথম বিষয়/কাজ লিখুন" else "নতুন বিষয়/কাজ লিখুন") },
-            minLines = 2,
-            maxLines = 4,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (live.topicHistory.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                live.topicHistory.forEach { h ->
-                    Chip(if (h.length > 22) h.take(22) + "…" else h, selected = false, onClick = { text = h })
+    }
+
+    if (open) {
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text("শিক্ষার্থীদের পাঠ") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (live.topic.isNotEmpty()) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(12.dp),
+                        ) {
+                            Column {
+                                Text("এখন চলছে (বিষয় ${bn(live.topicNo)})", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                Text(live.topic, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        label = { Text(if (live.topic.isEmpty()) "প্রথম বিষয়/কাজ লিখুন" else "নতুন বিষয়/কাজ লিখুন") },
+                        minLines = 2,
+                        maxLines = 5,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (live.topicHistory.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            live.topicHistory.forEach { h ->
+                                Chip(if (h.length > 22) h.take(22) + "…" else h, selected = false, onClick = { text = h })
+                            }
+                        }
+                    }
+                    Muted("নতুন বিষয় পাঠালে সবার বাটন আবার খালি হবে।", Modifier.padding(top = 8.dp), size = 12)
                 }
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        PrimaryButton(
-            "📤  শিক্ষার্থীদের পাঠান",
-            {
-                ClassEngine.core.setTopic(text)
-                text = ""
             },
-            Modifier.fillMaxWidth(),
-            enabled = text.isNotBlank(),
+            confirmButton = {
+                TextButton(
+                    enabled = text.isNotBlank(),
+                    onClick = {
+                        ClassEngine.core.setTopic(text)
+                        text = ""
+                        open = false
+                    },
+                ) { Text("📤 পাঠান", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { open = false }) { Text("বন্ধ") } },
         )
-        Muted("নতুন বিষয় পাঠালে সবার বাটন আবার খালি হবে।", Modifier.padding(top = 6.dp), size = 12)
     }
 }
 
