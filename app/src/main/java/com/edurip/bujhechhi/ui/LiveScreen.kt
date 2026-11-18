@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -458,16 +459,33 @@ private fun QuizPicker(live: LiveSnapshot, onEditQuiz: (Long) -> Unit) {
                 Muted("টপিক ধরে ৫-৭টি প্রশ্ন বানিয়ে নিন (AI-ও ব্যবহার করতে পারেন)।", size = 15)
             }
         } else {
-            list.forEach { s ->
-                val on = (if (selectedId == 0L) list.first().id else selectedId) == s.id
-                BjCard(onClick = { selectedId = s.id }) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (on) "🔘" else "⚪", fontSize = 20.sp)
+            val shape = RoundedCornerShape(16.dp)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 230.dp)
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline), shape)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                list.forEachIndexed { i, s ->
+                    val on = (if (selectedId == 0L) list.first().id else selectedId) == s.id
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(if (on) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
+                            .clickable { selectedId = s.id }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(if (on) "🔘" else "⚪", fontSize = 18.sp)
                         Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(s.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Muted("${bn(s.questions.size)}টি প্রশ্ন")
-                        }
+                        Text(s.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Muted("${bn(s.questions.size)}টি প্রশ্ন", size = 12)
+                    }
+                    if (i < list.size - 1) {
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)))
                     }
                 }
             }
