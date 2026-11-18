@@ -12,14 +12,23 @@ android {
         applicationId = "com.edurip.bujhechhi"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "1.0.0"
+    }
+
+    signingConfigs {
+        // স্থায়ী কী: প্রতিটি বিল্ডে একই সই থাকে, তাই নতুন APK পুরোনোর ওপর আপডেট হয়।
+        create("fixed") {
+            storeFile = file("bujhechhi.jks")
+            storePassword = "bujhechhi123"
+            keyAlias = "bujhechhi"
+            keyPassword = "bujhechhi123"
+        }
     }
 
     buildTypes {
         release {
-            // সরাসরি ইনস্টলের জন্য ডিবাগ কী দিয়ে সই করা হচ্ছে। Play Store-এ দিলে নিজের কী ব্যবহার করুন।
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("fixed")
             isMinifyEnabled = false
         }
     }
