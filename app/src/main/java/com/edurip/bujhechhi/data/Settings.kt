@@ -31,6 +31,11 @@ object Settings {
         get() = p.getString("api_key", "") ?: ""
         set(v) = p.edit().putString("api_key", v.trim()).apply()
 
+    /** ব্রেইন: AI-কে স্থায়ী নির্দেশনা (প্রতিবার প্রশ্ন বানানোর সময় যুক্ত হয়)। */
+    var aiBrain: String
+        get() = p.getString("ai_brain", "") ?: ""
+        set(v) = p.edit().putString("ai_brain", v.trim()).apply()
+
     var aiModel: String
         get() = p.getString("ai_model", "") ?: ""
         set(v) = p.edit().putString("ai_model", v.trim()).apply()

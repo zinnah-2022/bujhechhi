@@ -11,12 +11,23 @@ object AiQuiz {
 
     const val DEFAULT_MODEL = "claude-sonnet-5-5"
 
-    fun buildPrompt(topic: String, count: Int, level: String): String = """
+    /** ছবির ডেটা: mime (যেমন image/jpeg) ও base64 লেখা। */
+    class Img(val mime: String, val base64: String)
+
+    fun buildPrompt(topic: String, count: Int, level: String, extra: String = "", hasImages: Boolean = false): String {
+        val src = buildString {
+            if (hasImages) append("সংযুক্ত ছবি(গুলো)র লেখা ও বিষয়বস্তু পড়ে তার উপর ভিত্তি করে প্রশ্ন বানাও।\n")
+            if (topic.isNotBlank()) append("বিষয়/পাঠ্যাংশ:\n").append(topic.trim()).append('\n')
+        }
+        val brain = if (extra.isBlank()) "" else "\nশিক্ষকের বিশেষ নির্দেশনা (এগুলো অবশ্যই মেনে চলবে):\n${extra.trim()}\n"
+        return promptBody(count, level, src, brain)
+    }
+
+    private fun promptBody(count: Int, level: String, src: String, brain: String): String = """
         তুমি একজন অভিজ্ঞ বাংলাদেশি শিক্ষক। নিচের বিষয়ের উপর $count টি বহুনির্বাচনী প্রশ্ন (MCQ) বানাও।
         স্তর: $level
 
-        বিষয়/পাঠ্যাংশ:
-        $topic
+        $src$brain
 
         নিয়ম:
         - প্রশ্ন ও অপশন বাংলায় লেখো (গাণিতিক চিহ্ন বা ইংরেজি পরিভাষা প্রয়োজনে থাকতে পারে)।
@@ -28,13 +39,25 @@ object AiQuiz {
         এখানে "c" হলো সঠিক অপশনের ইনডেক্স (০ থেকে শুরু)।
     """.trimIndent()
 
-    fun buildRequestBody(model: String, prompt: String): String = Json.write(
-        mapOf(
-            "model" to model,
-            "max_tokens" to 4000,
-            "messages" to listOf(mapOf("role" to "user", "content" to prompt)),
-        ),
-    )
+    fun buildRequestBody(model: String, prompt: String, images: List<Img> = emptyList()): String {
+        val content: Any = if (images.isEmpty()) {
+            prompt
+        } else {
+            images.map {
+                mapOf(
+                    "type" to "image",
+                    "source" to mapOf("type" to "base64", "media_type" to it.mime, "data" to it.base64),
+                )
+            } + listOf(mapOf("type" to "text", "text" to prompt))
+        }
+        return Json.write(
+            mapOf(
+                "model" to model,
+                "max_tokens" to 4000,
+                "messages" to listOf(mapOf("role" to "user", "content" to content)),
+            ),
+        )
+    }
 
     /** মডেলের উত্তর থেকে প্রশ্নের তালিকা বের করে। কোড-ব্লক বা বাড়তি লেখা থাকলেও চলে। */
     fun parseQuestions(text: String): List<Question> {
@@ -62,18 +85,26 @@ object AiQuiz {
     }
 
     /** ব্লক করে (থ্রেডে ডাকতে হবে)। ব্যর্থ হলে Exception ছোঁড়ে, বার্তা বাংলায়। */
-    fun generate(apiKey: String, model: String, topic: String, count: Int, level: String): List<Question> {
+    fun generate(
+        apiKey: String,
+        model: String,
+        topic: String,
+        count: Int,
+        level: String,
+        extra: String = "",
+        images: List<Img> = emptyList(),
+    ): List<Question> {
         if (apiKey.isBlank()) throw IllegalStateException("সেটিংসে API কী দিন")
         val conn = URL("https://api.anthropic.com/v1/messages").openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
             conn.connectTimeout = 15000
-            conn.readTimeout = 90000
+            conn.readTimeout = 120000
             conn.doOutput = true
             conn.setRequestProperty("content-type", "application/json")
             conn.setRequestProperty("x-api-key", apiKey.trim())
             conn.setRequestProperty("anthropic-version", "2023-06-01")
-            conn.outputStream.use { it.write(buildRequestBody(model.ifBlank { DEFAULT_MODEL }, buildPrompt(topic, count, level)).toByteArray(Charsets.UTF_8)) }
+            conn.outputStream.use { it.write(buildRequestBody(model.ifBlank { DEFAULT_MODEL }, buildPrompt(topic, count, level, extra, images.isNotEmpty()), images).toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
