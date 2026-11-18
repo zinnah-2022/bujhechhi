@@ -611,8 +611,7 @@ private fun ConnectTab(live: LiveSnapshot, net: NetInfo) {
     val idx = pick.coerceIn(0, (net.addrs.size - 1).coerceAtLeast(0))
     val addr = net.addrs.getOrNull(idx)
     val base = addr?.let { "${it.ip}:${net.port}" }
-    var fixedQr by rememberSaveable { mutableStateOf(true) }
-    val url = base?.let { if (fixedQr) "http://$it/" else "http://$it/?c=${live.code}" }
+    val url = base?.let { "http://$it/" }
     val screenW = LocalConfiguration.current.screenWidthDp
     val qr = (screenW - 80).coerceIn(180, 300).dp
 
@@ -629,15 +628,9 @@ private fun ConnectTab(live: LiveSnapshot, net: NetInfo) {
                 PrimaryButton("হটস্পট সেটিংস খুলুন", { openHotspotSettings(ctx) }, Modifier.fillMaxWidth())
             }
         } else {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip("📌 স্থায়ী QR (প্রিন্টের জন্য)", fixedQr, { fixedQr = true })
-                Chip("আজকের QR (কোডসহ)", !fixedQr, { fixedQr = false })
-            }
             Text("শিক্ষার্থীরা এই QR স্ক্যান করুক", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             QrCode(url, qr)
-            if (fixedQr) {
-                Muted("এই QR প্রতিদিন একই থাকে — প্রিন্ট করে দেয়ালে লাগাতে পারেন। স্ক্যান করার পর শিক্ষার্থী নিচের ৪ অঙ্কের কোড লিখবে। কোডটি বোর্ডে লিখে দিন বা বলে দিন।", size = 14)
-            }
+            Muted("এই QR প্রতিদিন একই থাকে — প্রিন্ট করে দেয়ালে লাগাতে পারেন। স্ক্যানের পর শিক্ষার্থী নিচের ৪ অঙ্কের কোড লিখবে।", size = 14)
             Text(
                 "কোড  ${bn(live.code)}",
                 fontSize = 38.sp,
@@ -645,6 +638,18 @@ private fun ConnectTab(live: LiveSnapshot, net: NetInfo) {
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
             )
+            Muted("কোডটি প্রতিটি ক্লাস শুরুতে নিজে থেকে নতুন র‍্যান্ডম ৪ অঙ্কে তৈরি হয়। বোর্ডে লিখে দিন বা বলে দিন।", size = 13)
+            OutlinedButton(
+                onClick = {
+                    val ok = Poster.save(ctx, Poster.render(url))
+                    android.widget.Toast.makeText(
+                        ctx,
+                        if (ok != null) "✅ পোস্টার সেভ হয়েছে: $ok" else "সেভ করা যায়নি",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                },
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+            ) { Text("⬇️  প্রিন্টের পোস্টার ডাউনলোড", fontSize = 13.sp) }
             BjCard(Modifier.fillMaxWidth()) {
                 Text("QR না চললে ব্রাউজারে এই ঠিকানা লিখুন", fontWeight = FontWeight.SemiBold)
                 Text(base ?: "", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
