@@ -544,7 +544,8 @@ private fun ConnectTab(live: LiveSnapshot, net: NetInfo) {
     val idx = pick.coerceIn(0, (net.addrs.size - 1).coerceAtLeast(0))
     val addr = net.addrs.getOrNull(idx)
     val base = addr?.let { "${it.ip}:${net.port}" }
-    val url = base?.let { "http://$it/?c=${live.code}" }
+    var fixedQr by rememberSaveable { mutableStateOf(true) }
+    val url = base?.let { if (fixedQr) "http://$it/" else "http://$it/?c=${live.code}" }
     val screenW = LocalConfiguration.current.screenWidthDp
     val qr = (screenW - 80).coerceIn(180, 300).dp
 
@@ -561,8 +562,15 @@ private fun ConnectTab(live: LiveSnapshot, net: NetInfo) {
                 PrimaryButton("হটস্পট সেটিংস খুলুন", { openHotspotSettings(ctx) }, Modifier.fillMaxWidth())
             }
         } else {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("📌 স্থায়ী QR (প্রিন্টের জন্য)", fixedQr, { fixedQr = true })
+                Chip("আজকের QR (কোডসহ)", !fixedQr, { fixedQr = false })
+            }
             Text("শিক্ষার্থীরা এই QR স্ক্যান করুক", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             QrCode(url, qr)
+            if (fixedQr) {
+                Muted("এই QR প্রতিদিন একই থাকে — প্রিন্ট করে দেয়ালে লাগাতে পারেন। স্ক্যান করার পর শিক্ষার্থী নিচের ৪ অঙ্কের কোড লিখবে। কোডটি বোর্ডে লিখে দিন বা বলে দিন।", size = 14)
+            }
             Text(
                 "কোড  ${bn(live.code)}",
                 fontSize = 38.sp,
