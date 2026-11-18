@@ -98,16 +98,55 @@ object AiQuiz {
         val key = apiKey.trim()
         val gemini = isGeminiKey(key)
         val prompt = buildPrompt(topic, count, level, extra, images.isNotEmpty())
-        val url: String
-        val payload: String
-        if (gemini) {
-            val m = if (model.isBlank() || model.startsWith("claude")) GEMINI_MODEL else model.trim()
-            url = "https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent"
-            payload = buildGeminiBody(prompt, images)
+
+        // Gemini-তে একটি মডেল ব্যস্ত থাকলে নিজে থেকে পরেরটি চেষ্টা করে।
+        val models: List<String> = if (gemini) {
+            val first = if (model.isBlank() || model.startsWith("claude")) GEMINI_MODEL else model.trim()
+            listOf(first, "gemini-2.5-flash", "gemini-flash-lite-latest", first).distinct().let { it + it.first() }
         } else {
-            url = "https://api.anthropic.com/v1/messages"
-            payload = buildRequestBody(model.ifBlank { DEFAULT_MODEL }, prompt, images)
+            listOf(model.ifBlank { DEFAULT_MODEL })
         }
+
+        var lastCode = 0
+        var lastMsg = ""
+        for ((i, m) in models.withIndex()) {
+            val url: String
+            val payload: String
+            if (gemini) {
+                url = "https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent"
+                payload = buildGeminiBody(prompt, images)
+            } else {
+                url = "https://api.anthropic.com/v1/messages"
+                payload = buildRequestBody(m, prompt, images)
+            }
+            val (code, body) = post(url, key, gemini, payload)
+            if (code in 200..299) {
+                val qs = parseQuestions(if (gemini) extractGeminiText(body) else extractText(body))
+                if (qs.isNotEmpty()) return qs
+                lastCode = 0
+                lastMsg = "প্রশ্ন বানানো যায়নি, আবার চেষ্টা করুন"
+                if (i < models.size - 1) continue else break
+            }
+            lastCode = code
+            lastMsg = Json.parseOrNull(body).asMap()?.get("error").asMap()?.str("message") ?: "HTTP $code"
+            if (code == 401 || (gemini && lastMsg.contains("API key", ignoreCase = true))) {
+                throw IllegalStateException("API কী ভুল")
+            }
+            val busy = code == 429 || code == 500 || code == 503 || code == 504
+            if (!busy) throw IllegalStateException(lastMsg)
+            if (i < models.size - 1) Thread.sleep(2500)
+        }
+        throw IllegalStateException(
+            when (lastCode) {
+                429 -> "আজকের ফ্রি সীমা শেষ বা অনেক বেশি অনুরোধ। কিছুক্ষণ পরে আবার চেষ্টা করুন।"
+                500, 503, 504 -> "এআই সার্ভারে এখন অনেক চাপ। ১-২ মিনিট পরে আবার “প্রশ্ন বানান” চাপুন।"
+                else -> lastMsg
+            },
+        )
+    }
+
+    /** একটি HTTP অনুরোধ; (স্ট্যাটাস কোড, উত্তরের লেখা) ফেরত দেয়। */
+    private fun post(url: String, key: String, gemini: Boolean, payload: String): Pair<Int, String> {
         val conn = URL(url).openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
@@ -125,19 +164,7 @@ object AiQuiz {
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-            if (code !in 200..299) {
-                val msg = Json.parseOrNull(body).asMap()?.get("error").asMap()?.str("message") ?: "HTTP $code"
-                throw IllegalStateException(
-                    when {
-                        code == 401 || (gemini && msg.contains("API key", ignoreCase = true)) -> "API কী ভুল"
-                        code == 429 -> "অনেক বেশি অনুরোধ বা দৈনিক সীমা শেষ, একটু পরে চেষ্টা করুন"
-                        else -> msg
-                    },
-                )
-            }
-            val qs = parseQuestions(if (gemini) extractGeminiText(body) else extractText(body))
-            if (qs.isEmpty()) throw IllegalStateException("প্রশ্ন বানানো যায়নি, আবার চেষ্টা করুন")
-            return qs
+            return code to body
         } finally {
             conn.disconnect()
         }
