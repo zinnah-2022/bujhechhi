@@ -165,6 +165,7 @@ fun main() {
 
     unicodeTest()
     shareTest()
+    castTest()
     println(if (fails == 0) "\nALL PASSED" else "\n$fails FAILED")
     System.exit(if (fails == 0) 0 else 1)
 }
@@ -252,4 +253,44 @@ fun shareTest() {
     check("new share new id", id2 > id)
     core.endSession()
     check("ended clears share", core.snapshot().share == null)
+}
+
+fun castTest() {
+    val store = MemStore()
+    val core = ClassCore(store)
+    val tr = Rec(); core.transport = tr
+    check("cast: no session ignored", run { core.castStart(1); core.snapshot().cast == null && !core.castAllowed("0000") })
+    val s = core.startSession("cast")
+    core.onMessage("a", """{"t":"hello","cid":"device-aaaa","code":"${s.code}"}""")
+    check("cast: off by default", tr.last("a", "state")?.get("sc") == null && !core.castAllowed(s.code))
+    core.castStart(2)
+    check("cast: state sc on", tr.last("a", "state")?.get("sc").asMap()?.int("p") == 0)
+    check("cast: allowed with code", core.castAllowed(s.code) && !core.castAllowed("9999"))
+    check("cast: snapshot", core.snapshot().cast?.quality == 2 && core.snapshot().cast?.paused == false)
+    core.castPause(true)
+    check("cast: paused state", tr.last("a", "state")?.get("sc").asMap()?.int("p") == 1 && !core.castAllowed(s.code))
+    core.castPause(false)
+    check("cast: resumed", core.castAllowed(s.code))
+    core.castQuality(0)
+    check("cast: quality change", core.castQualityNow() == 0 && core.snapshot().cast?.quality == 0)
+    core.castStop()
+    check("cast: stopped", tr.last("a", "state")?.get("sc") == null && core.snapshot().cast == null && !core.castAllowed(s.code))
+    core.castStart(1); core.endSession()
+    check("cast: end session clears", core.snapshot().cast == null)
+
+    // ScreenHub
+    var t = 1_000L
+    val hub = ScreenHub { t }
+    check("hub: empty", hub.peek(0) == null)
+    val a = hub.publish(byteArrayOf(1, 2, 3))
+    check("hub: peek newer", hub.peek(0)?.seq == a && hub.peek(a) == null)
+    val b = hub.publish(byteArrayOf(9))
+    check("hub: latest only", hub.peek(a)?.bytes?.size == 1 && b > a)
+    hub.touch("device-aaaa"); hub.served("device-bbbb", 500)
+    check("hub: viewers", hub.viewers() == 2 && hub.bytesServed.get() == 500L && hub.framesPublished.get() == 2L)
+    t += 20_000
+    check("hub: viewers expire", hub.viewers() == 0)
+    hub.touch("x"); check("hub: short cid ignored", hub.viewers() == 0)
+    hub.reset()
+    check("hub: reset", hub.peek(0) == null)
 }

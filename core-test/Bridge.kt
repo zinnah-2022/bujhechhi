@@ -41,6 +41,10 @@ fun main() {
                     "quizend" -> { core.quizEnd(); reply("{}") }
                     "extend" -> { core.quizExtend(cmd[1].toInt()); reply("{}") }
                     "end" -> reply(Json.write(mapOf("id" to core.endSession())))
+                    "caststart" -> { core.castStart(cmd[1].toInt()); reply("{}") }
+                    "castpause" -> { core.castPause(cmd[1] == "1"); reply("{}") }
+                    "caststop" -> { core.castStop(); reply("{}") }
+                    "castok" -> reply(Json.write(mapOf("ok" to core.castAllowed(cmd[1]))))
                     "shareset" -> reply(Json.write(mapOf("id" to core.shareSet(cmd[1].toInt()))))
                     "shareshow" -> { core.shareShow(cmd[1] == "1"); reply("{}") }
                     "sharegoto" -> { core.shareGoto(cmd[1].toInt()); reply("{}") }

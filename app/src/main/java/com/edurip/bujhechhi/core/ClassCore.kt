@@ -29,6 +29,9 @@ data class LiveQuiz(
     val revealed: Set<Int>,
 )
 
+/** স্ক্রিন শেয়ারের অবস্থা (শিক্ষকের স্ক্রিনের জন্য)। quality: ০ কম ডেটা, ১ স্বাভাবিক, ২ ভালো। */
+data class LiveCast(val paused: Boolean, val quality: Int)
+
 data class LiveStroke(val k: Int, val color: String, val pts: List<Double>)
 
 /** শেয়ার করা প্রশ্ন (ছবি/PDF-এর পাতা)। strokes শুধু বর্তমান পাতার দাগ। */
@@ -59,6 +62,7 @@ data class LiveSnapshot(
     val alertSeq: Int,
     val quiz: LiveQuiz?,
     val share: LiveShare? = null,
+    val cast: LiveCast? = null,
 ) {
     companion object {
         val EMPTY = LiveSnapshot(
@@ -122,6 +126,9 @@ class ClassCore(
     private val lock = Any()
     private var share: Share? = null
     private var shareSeq = 0L
+    private var castOn = false
+    private var castPaused = false
+    private var castQ = 1
     private var session: SessionInfo? = null
     private val participants = LinkedHashMap<Long, Participant>()
     private val nameIndex = HashMap<String, Long>()
@@ -190,7 +197,7 @@ class ClassCore(
         val info = SessionInfo(id, t, code, now)
         session = info
         participants.clear(); nameIndex.clear(); devices.clear(); connToCid.clear()
-        topic = null; topicNo = 0; topicHistory.clear(); fb.clear(); run = null; share = null
+        topic = null; topicNo = 0; topicHistory.clear(); fb.clear(); run = null; share = null; castOn = false; castPaused = false
         alertLatched = false
         roster.clear(); roster.addAll(store.rosterAll())
         dirty = true
@@ -211,7 +218,7 @@ class ClassCore(
         store.sessionEnd(s.id, clock())
         session = null
         participants.clear(); nameIndex.clear(); devices.clear(); connToCid.clear()
-        topic = null; fb.clear(); run = null; share = null
+        topic = null; fb.clear(); run = null; share = null; castOn = false; castPaused = false
         dirty = true
         return s.id
     }
@@ -305,6 +312,44 @@ class ClassCore(
         roster.clear()
         roster.addAll(store.rosterAll())
     }
+
+    // ---------------------------------------------------------------- স্ক্রিন শেয়ার (শিক্ষার্থীরা শুধু দেখে)
+
+    fun castStart(quality: Int) = locked {
+        if (session == null) return@locked
+        castOn = true
+        castPaused = false
+        castQ = quality.coerceIn(0, 2)
+        broadcastState()
+    }
+
+    /** বিরতি: শিক্ষার্থীর পর্দা ফাঁকা হয়ে "একটু থামিয়েছেন" দেখায়; ছবি দেওয়াও বন্ধ। */
+    fun castPause(paused: Boolean) = locked {
+        if (!castOn || castPaused == paused) return@locked
+        castPaused = paused
+        broadcastState()
+    }
+
+    fun castQuality(q: Int) = locked {
+        if (!castOn) return@locked
+        castQ = q.coerceIn(0, 2)
+        dirty = true
+    }
+
+    fun castStop() = locked {
+        if (!castOn) return@locked
+        castOn = false
+        castPaused = false
+        broadcastState()
+    }
+
+    /** স্ক্রিনের ছবি দেওয়ার আগে যাচাই: কোড মেলা, শেয়ার চালু ও বিরতিতে না থাকা। */
+    fun castAllowed(code: String): Boolean = synchronized(lock) {
+        val s = session ?: return false
+        castOn && !castPaused && code == s.code
+    }
+
+    fun castQualityNow(): Int = synchronized(lock) { castQ }
 
     // ---------------------------------------------------------------- প্রশ্ন শেয়ার (ছবি/PDF পাতা)
 
@@ -661,6 +706,7 @@ class ClassCore(
                 "profiles" to profiles,
                 "quiz" to quiz,
                 "sh" to shareView,
+                "sc" to (if (castOn) mapOf("p" to (if (castPaused) 1 else 0)) else null),
             ),
         )
     }
@@ -739,6 +785,7 @@ class ClassCore(
             none = students.size - g - y - rd,
             alertSeq = alertSeq,
             quiz = liveQuiz,
+            cast = if (castOn) LiveCast(castPaused, castQ) else null,
             share = share?.let { sh ->
                 LiveShare(
                     sh.id, sh.n, sh.page, sh.visible, sh.allowSave,

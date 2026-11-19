@@ -35,7 +35,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -145,8 +145,8 @@ fun LiveScreen(onEnded: (Long) -> Unit, onEditQuiz: (Long) -> Unit) {
             }
         }
 
-        TabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.surface) {
-            listOf("ফিডব্যাক", "কুইজ", "প্রশ্ন শেয়ার", "কানেকশন").forEachIndexed { i, t ->
+        ScrollableTabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.surface, edgePadding = 8.dp) {
+            listOf("ফিডব্যাক", "কুইজ", "প্রশ্ন শেয়ার", "স্ক্রিন শেয়ার", "কানেকশন").forEachIndexed { i, t ->
                 Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1) })
             }
         }
@@ -156,6 +156,7 @@ fun LiveScreen(onEnded: (Long) -> Unit, onEditQuiz: (Long) -> Unit) {
                 0 -> FeedbackTab(live)
                 1 -> LiveQuizTab(live, onEditQuiz)
                 2 -> ShareTab(live.share)
+                3 -> CastTab(live.cast)
                 else -> ConnectTab(live, net)
             }
         }

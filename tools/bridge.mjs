@@ -15,6 +15,7 @@ const java = spawn('java', ['-Dstdout.encoding=UTF-8', '-Dfile.encoding=UTF-8', 
 let replyWaiters = [];
 const conns = new Map();
 let seq = 0;
+let frameSeq = 0;
 
 let buf = '';
 java.stdout.setEncoding('utf8');
@@ -41,6 +42,24 @@ const server = http.createServer((req, res) => {
       replyWaiters.push((r) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(r); });
       java.stdin.write('T ' + body + '\n');
     });
+    return;
+  }
+  if (url.pathname === '/castframe') { frameSeq++; res.writeHead(200); return res.end(String(frameSeq)); }
+  if (url.pathname === '/scr') {
+    // আসল KtorHost-এর /scr রাউটের নকল: কোড যাচাই (আসল ClassCore), তারপর long-poll
+    const c = url.searchParams.get('c') || '';
+    const after = Number(url.searchParams.get('after') || 0);
+    const allowed = () => new Promise((ok) => { replyWaiters.push((r) => ok(JSON.parse(r).ok)); java.stdin.write('T castok ' + c + '\n'); });
+    (async () => {
+      if (!(await allowed())) { res.writeHead(409); return res.end('off'); }
+      const end = Date.now() + 3000;
+      while (frameSeq <= after && Date.now() < end && (await allowed())) await new Promise((r) => setTimeout(r, 40));
+      if (frameSeq <= after) { res.writeHead(204); return res.end(); }
+      const hue = (frameSeq * 70) % 360;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="540" height="960" viewBox="0 0 540 960"><rect width="540" height="960" fill="hsl(${hue},70%,85%)"/><text x="40" y="200" font-size="60" font-family="sans-serif">স্ক্রিন #${frameSeq}</text></svg>`;
+      res.writeHead(200, { 'content-type': 'image/svg+xml', 'x-seq': String(frameSeq), 'cache-control': 'no-store' });
+      res.end(svg);
+    })();
     return;
   }
   const im = url.pathname.match(/^\/img\/(\d+)\/(\d+)$/);

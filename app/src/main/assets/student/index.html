@@ -154,6 +154,7 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;white-space:nowrap;over
 #vmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:17px;color:#cbd0f0;pointer-events:none}
 #vmsg.tap{pointer-events:auto}
 .vfoot{padding:6px 12px calc(8px + env(safe-area-inset-bottom));text-align:center;font-size:13px;color:#9a9fc0;background:rgba(20,20,40,.96)}
+#viewer.castmode #vmin,#viewer.castmode #vsave{display:none}
 #shareFab{position:fixed;right:14px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:25;padding:13px 18px;border-radius:99px;
   background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-weight:700;font-size:16px;box-shadow:0 8px 24px rgba(67,56,202,.45);animation:pulse 1.8s 3}
 #shareFab[hidden]{display:none}
@@ -287,6 +288,7 @@ function handle(m) {
       lastTid = m.tid;
       render();
       shareUpdate(m.sh || null);
+      castUpdate(m.sc || null);
       if (tidChanged) { flashTopic(); buzz(60); }
       if (!m.profiles.length && !sheetOpen) openSheet();
       else if (m.profiles.length && sheetOpen && sheetJoinedPending) closeSheet();
@@ -298,7 +300,7 @@ function handle(m) {
     case 'sd':
       onDraw(m); break;
     case 'ended':
-      phase = 'ended'; online = false; try { ws && ws.close(); } catch (e) {} ws = null; closeSheet(); shareUpdate(null); render(); break;
+      phase = 'ended'; online = false; try { ws && ws.close(); } catch (e) {} ws = null; closeSheet(); shareUpdate(null); castUpdate(null); render(); break;
     case 'pong': break;
     case 'err': onErr(m.c); break;
   }
@@ -563,7 +565,7 @@ $('#sugWrap').addEventListener('click', function (e) {
 
 
 // ---------------------------------------------------------------- প্রশ্ন শেয়ার ভিউয়ার (জুম, শিক্ষকের দাগ)
-var V = { id: 0, p: -1, n: 0, sv: 0, strokes: [], open: false, minimized: false, ok: false,
+var V = { pending: null, id: 0, p: -1, n: 0, sv: 0, strokes: [], open: false, minimized: false, ok: false,
           z: 1, tx: 0, ty: 0, fit: 1, w: 0, h: 0, natW: 0, natH: 0 };
 var vstage = $('#vstage'), vwrap = $('#vwrap'), vimg = $('#vimg'), vcan = $('#vcan'), vmsg = $('#vmsg');
 var vctx = vcan.getContext('2d');
@@ -572,6 +574,7 @@ var MAXZ = 6;
 function imgUrl(p, dl) { return '/img/' + V.id + '/' + p + '?c=' + code + (dl ? '&dl=1' : ''); }
 
 function shareUpdate(sh) {
+  if (C.on) { V.pending = sh; return; }   // স্ক্রিন শেয়ার চলার সময় প্রশ্নের ভিউয়ার থেমে থাকে
   if (!sh) {
     V.id = 0; V.open = false; V.minimized = false; V.ok = false; V.p = -1;
     $('#viewer').hidden = true; $('#shareFab').hidden = true;
@@ -729,6 +732,83 @@ $('#vsave').addEventListener('click', function () {
   a.href = imgUrl(V.p, true); a.download = 'question-' + (V.p + 1) + '.jpg';
   document.body.appendChild(a); a.click(); a.remove();
 });
+
+
+// ---------------------------------------------------------------- স্ক্রিন শেয়ার (শুধু দেখা)
+var C = { on: false, paused: false, gen: 0, after: 0, url: null, running: false, first: true };
+var viewerEl = $('#viewer');
+
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+function castUpdate(sc) {
+  var on = !!sc, was = C.on;
+  C.paused = !!(sc && sc.p);
+  if (!on) { if (was) castTeardown(); return; }
+  if (!was) {
+    C.on = true; C.gen++; C.after = 0; C.first = true;
+    viewerEl.classList.add('castmode');
+    V.ok = false; V.open = true;
+    $('#vtitle').textContent = '📺 শিক্ষকের স্ক্রিন';
+    $('#vfoot').textContent = 'শিক্ষক স্ক্রিন দেখাচ্ছেন · জুম করে ছোট লেখা দেখতে পারেন';
+    viewerEl.hidden = false; $('#shareFab').hidden = true;
+    vctx.clearRect(0, 0, vcan.width, vcan.height);
+    vwrap.style.visibility = 'hidden';
+    vmsg.className = ''; vmsg.textContent = 'স্ক্রিন আসছে…';
+    buzz(60);
+  }
+  castPauseUi();
+  if (!C.paused && !C.running) castLoop(C.gen);
+}
+
+function castPauseUi() {
+  if (C.paused) {
+    vwrap.style.visibility = 'hidden';
+    vmsg.className = ''; vmsg.textContent = '⏸ শিক্ষক একটু থামিয়েছেন…';
+  } else if (V.ok) {
+    vwrap.style.visibility = 'visible'; vmsg.textContent = '';
+  } else {
+    vmsg.className = ''; vmsg.textContent = 'স্ক্রিন আসছে…';
+  }
+}
+
+function castLoop(gen) {
+  C.running = true;
+  (function step() {
+    if (!C.on || C.paused || gen !== C.gen) { C.running = false; return; }
+    fetch('/scr?c=' + code + '&cid=' + CID + '&after=' + C.after, { cache: 'no-store' }).then(function (r) {
+      if (r.status === 200) {
+        C.after = parseInt(r.headers.get('X-Seq'), 10) || C.after;
+        return r.blob().then(function (b) { if (gen === C.gen && !C.paused) showFrame(b); });
+      }
+      if (r.status === 204) return null;
+      return sleep(900);
+    }).catch(function () { return sleep(900); }).then(step);
+  })();
+}
+
+function showFrame(blob) {
+  var u = URL.createObjectURL(blob), old = C.url;
+  C.url = u;
+  vimg.onload = function () {
+    var changed = C.first || vimg.naturalWidth !== V.natW || vimg.naturalHeight !== V.natH;
+    V.natW = vimg.naturalWidth; V.natH = vimg.naturalHeight;
+    if (changed) { V.ok = true; layoutFit(); }
+    C.first = false;
+    if (!C.paused) { vwrap.style.visibility = 'visible'; vmsg.textContent = ''; }
+    if (old) URL.revokeObjectURL(old);
+  };
+  vimg.onerror = function () { if (old) URL.revokeObjectURL(old); };
+  vimg.src = u;
+}
+
+function castTeardown() {
+  C.on = false; C.gen++; C.paused = false;
+  if (C.url) { URL.revokeObjectURL(C.url); C.url = null; }
+  viewerEl.classList.remove('castmode');
+  V.id = 0; V.p = -1; V.ok = false; V.open = false;
+  viewerEl.hidden = true;
+  shareUpdate(V.pending || null);   // শেয়ার করা প্রশ্ন থাকলে আবার সেটাই দেখাবে
+}
 
 // ---------------------------------------------------------------- শুরু
 render();

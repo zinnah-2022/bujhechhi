@@ -29,6 +29,10 @@ object ClassEngine {
     lateinit var core: ClassCore
         private set
 
+    val screenHub = com.edurip.bujhechhi.core.ScreenHub()
+    @Volatile var castPaused = false
+        private set
+
     private var host: KtorHost? = null
     private val timer = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "bj-tick").apply { isDaemon = true } }
     private var ticking: ScheduledFuture<*>? = null
@@ -64,7 +68,7 @@ object ClassEngine {
         init(ctx)
         val a = app ?: return Result.failure(IllegalStateException("init হয়নি"))
         if (core.isActive()) return Result.success(SessionInfo(0, "", "", 0))
-        val h = KtorHost(a, core)
+        val h = KtorHost(a, core, screenHub)
         val port = try {
             h.start()
         } catch (e: Exception) {
@@ -90,6 +94,7 @@ object ClassEngine {
     /** ক্লাস শেষ; শেষ হওয়া সেশনের আইডি ফেরত দেয়। */
     @Synchronized
     fun endClass(): Long {
+        castStop()
         val id = core.endSession()
         deleteShareFiles()
         stopTicker()
@@ -148,6 +153,48 @@ object ClassEngine {
     fun shareRemove() {
         core.shareRemove()
         deleteShareFiles()
+    }
+
+    // ---- স্ক্রিন শেয়ার
+
+    /** MediaProjection-এর অনুমতির ফল পাওয়ার পর ডাকুন। */
+    @Synchronized
+    fun castStart(ctx: Context, resultCode: Int, data: Intent, quality: Int): Boolean {
+        val a = app ?: return false
+        if (!core.isActive()) return false
+        castPaused = false
+        screenHub.reset()
+        core.castStart(quality)
+        return try {
+            val i = Intent(a, ScreenCastService::class.java).putExtra("rc", resultCode).putExtra("data", data)
+            ContextCompat.startForegroundService(a, i)
+            true
+        } catch (e: Exception) {
+            core.castStop()
+            false
+        }
+    }
+
+    fun castPause(paused: Boolean) {
+        castPaused = paused
+        core.castPause(paused)
+        ScreenCastService.onPauseChanged(paused)
+    }
+
+    fun castQuality(q: Int) = core.castQuality(q)
+
+    @Synchronized
+    fun castStop() {
+        castPaused = false
+        core.castStop()
+        screenHub.reset()
+        app?.let { a ->
+            try {
+                a.stopService(Intent(a, ScreenCastService::class.java))
+            } catch (e: Exception) {
+                // উপেক্ষা
+            }
+        }
     }
 
     fun refreshNet(port: Int = host?.port ?: 0) {

@@ -11,6 +11,8 @@ import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.response.header
+import io.ktor.server.response.respond
+import kotlinx.coroutines.delay
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
@@ -35,7 +37,11 @@ import java.util.concurrent.atomic.AtomicLong
  * শিক্ষকের ফোনে চলা ছোট ওয়েব সার্ভার: শিক্ষার্থীর পেজ (assets/student) পরিবেশন করে
  * এবং /ws-এ WebSocket নেয়। সব যুক্তি [ClassCore]-এ; এখানে শুধু যোগাযোগ।
  */
-class KtorHost(private val context: Context, private val core: ClassCore) : ClassCore.Transport {
+class KtorHost(
+    private val context: Context,
+    private val core: ClassCore,
+    private val hub: com.edurip.bujhechhi.core.ScreenHub,
+) : ClassCore.Transport {
 
     private val conns = ConcurrentHashMap<String, DefaultWebSocketServerSession>()
     private val assetCache = ConcurrentHashMap<String, ByteArray>()
@@ -152,6 +158,31 @@ class KtorHost(private val context: Context, private val core: ClassCore) : Clas
                 call.response.header(HttpHeaders.CacheControl, "private, max-age=3600")
                 if (dl) call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"question-${page + 1}.jpg\"")
                 call.respondBytes(f.readBytes(), ContentType.Image.JPEG)
+            }
+            // স্ক্রিন শেয়ার: ব্রাউজার "after"-এর চেয়ে নতুন ছবি চায়; না থাকলে ৮ সেকেন্ড পর্যন্ত অপেক্ষা (long-poll)।
+            get("/scr") {
+                val c = call.request.queryParameters["c"].orEmpty()
+                val cid = call.request.queryParameters["cid"].orEmpty()
+                val after = call.request.queryParameters["after"]?.toLongOrNull() ?: 0L
+                if (!core.castAllowed(c)) {
+                    call.respondText("off", status = HttpStatusCode.Conflict)
+                    return@get
+                }
+                hub.touch(cid)
+                val deadline = System.currentTimeMillis() + 8000
+                var f = hub.peek(after)
+                while (f == null && System.currentTimeMillis() < deadline && core.castAllowed(c)) {
+                    delay(40)
+                    f = hub.peek(after)
+                }
+                if (f == null) {
+                    call.respond(HttpStatusCode.NoContent)
+                } else {
+                    hub.served(cid, f.bytes.size)
+                    call.response.header(HttpHeaders.CacheControl, "no-store")
+                    call.response.header("X-Seq", f.seq.toString())
+                    call.respondBytes(f.bytes, ContentType.Image.JPEG)
+                }
             }
             webSocket("/ws") {
                 val id = "c" + seq.incrementAndGet()
