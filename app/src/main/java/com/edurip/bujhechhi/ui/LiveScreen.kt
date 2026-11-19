@@ -559,19 +559,25 @@ private fun QuizControl(live: LiveSnapshot, q: LiveQuiz) {
             val shown = qi in q.revealed
             BjCard {
                 Text("প্রশ্ন ${bn(qi + 1)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                Text(question.text, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Spacer(Modifier.height(4.dp))
-                question.options.forEachIndexed { oi, text ->
-                    OptionBar(
-                        label = OPTION_LETTERS.getOrElse(oi) { "•" },
-                        text = text,
-                        count = counts.getOrElse(oi) { 0 },
-                        total = total,
-                        correct = if (shown) oi == question.correct else null,
-                    )
+                val math = hasMath(question.text) || question.options.any { hasMath(it) } || (shown && hasMath(question.explanation))
+                if (math) {
+                    // গণিত থাকলে সূত্রসহ সুন্দর করে (অফলাইন KaTeX)
+                    MathQuestion(question.text, question.options, counts, total, if (shown) question.correct else null, if (shown) question.explanation else null)
+                } else {
+                    Text(question.text, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Spacer(Modifier.height(4.dp))
+                    question.options.forEachIndexed { oi, text ->
+                        OptionBar(
+                            label = OPTION_LETTERS.getOrElse(oi) { "•" },
+                            text = text,
+                            count = counts.getOrElse(oi) { 0 },
+                            total = total,
+                            correct = if (shown) oi == question.correct else null,
+                        )
+                    }
                 }
                 Muted("${bn(q.answeredPerQ[qi])}/${bn(total)} জন উত্তর দিয়েছে", Modifier.padding(top = 8.dp))
-                if (shown && question.explanation.isNotBlank()) {
+                if (!math && shown && question.explanation.isNotBlank()) {
                     Muted("ব্যাখ্যা: ${question.explanation}", Modifier.padding(top = 4.dp), size = 13)
                 }
             }
