@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -223,22 +225,21 @@ fun OptionBar(label: String, text: String, count: Int, total: Int, correct: Bool
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        if (frac > 0f) {
-            Box(Modifier.fillMaxWidth(frac).height(44.dp).background(tint.copy(alpha = 0.28f)))
-        } else {
-            Box(Modifier.fillMaxWidth().height(44.dp))
+        // ভোটের বার: অপশনের লেখা যত লাইন হোক, পুরো উচ্চতা জুড়ে থাকে
+        Box(Modifier.matchParentSize()) {
+            if (frac > 0f) Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(tint.copy(alpha = 0.28f)))
         }
         Row(
-            Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 "$label  $text" + if (correct == true) "  ✓" else "",
                 modifier = Modifier.weight(1f),
-                maxLines = 1,
                 fontWeight = if (correct == true) FontWeight.Bold else FontWeight.Medium,
                 color = if (correct == true) Green else MaterialTheme.colorScheme.onSurface,
             )
+            Spacer(Modifier.width(8.dp))
             Text(bn(count), fontWeight = FontWeight.Bold)
         }
     }
