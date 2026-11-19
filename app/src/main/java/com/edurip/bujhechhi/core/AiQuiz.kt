@@ -34,6 +34,7 @@ object AiQuiz {
         - প্রতিটি প্রশ্নে ঠিক ৪টি অপশন, সঠিক উত্তর একটিই।
         - ভুল অপশনগুলো এমন হবে যাতে শিক্ষার্থীর সাধারণ ভুল ধারণা ধরা পড়ে।
         - প্রতিটির জন্য ১-২ বাক্যে ছোট ব্যাখ্যা দাও।
+        - গণিতের সূত্র, ভগ্নাংশ, ঘাত, বর্গমূল ইত্যাদি LaTeX-এ ডলার চিহ্নের ভেতরে লেখো, যেমন ${'$'}\\frac{1}{2}${'$'}, ${'$'}x^2${'$'}, ${'$'}\\sqrt{3}${'$'}। JSON স্ট্রিংয়ে প্রতিটি ব্যাকস্ল্যাশ দ্বিগুণ হবে। নতুন লাইন ব্যবহার করবে না।
         - শুধু JSON অ্যারে ফেরত দাও, আর কোনো লেখা বা কোড-ব্লক নয়। ফরম্যাট:
         [{"q":"প্রশ্ন","o":["অপশন১","অপশন২","অপশন৩","অপশন৪"],"c":0,"e":"ব্যাখ্যা"}]
         এখানে "c" হলো সঠিক অপশনের ইনডেক্স (০ থেকে শুরু)।
@@ -64,7 +65,7 @@ object AiQuiz {
         val start = text.indexOf('[')
         val end = text.lastIndexOf(']')
         if (start < 0 || end <= start) return emptyList()
-        val arr = Json.parseOrNull(text.substring(start, end + 1)).asList() ?: return emptyList()
+        val arr = Json.parseOrNull(repairEscapes(text.substring(start, end + 1))).asList() ?: return emptyList()
         return arr.mapNotNull { item ->
             val m = item.asMap() ?: return@mapNotNull null
             val q = m.str("q")?.trim().orEmpty()
@@ -74,6 +75,32 @@ object AiQuiz {
             if (q.isEmpty() || opts.size < 2 || c !in opts.indices) return@mapNotNull null
             Question(q, opts, c, m.str("e")?.trim().orEmpty())
         }
+    }
+
+    /**
+     * এআই অনেক সময় LaTeX-এর ব্যাকস্ল্যাশ একটি করে লেখে (\frac, \beta, \times)। JSON-এ \f \b \t চুপচাপ
+     * অন্য অক্ষর হয়ে যায়, বাকিগুলো ভুল। তাই বৈধ JSON এস্কেপের (\" \\ \/ \uXXXX) বাইরের সব ব্যাকস্ল্যাশ,
+     * এবং \b \f \n \r \t এর পরে ইংরেজি অক্ষর থাকলে (মানে LaTeX কমান্ড), দ্বিগুণ করি।
+     */
+    fun repairEscapes(s: String): String {
+        val sb = StringBuilder(s.length + 16)
+        var i = 0
+        while (i < s.length) {
+            val ch = s[i]
+            if (ch != '\\') { sb.append(ch); i++; continue }
+            val n = s.getOrNull(i + 1)
+            val n2 = s.getOrNull(i + 2)
+            when {
+                n == null -> sb.append("\\\\")
+                n == '\\' -> { sb.append("\\\\"); i++ }
+                n == '"' || n == '/' -> { sb.append(ch).append(n); i++ }
+                n == 'u' && s.length >= i + 6 && s.substring(i + 2, i + 6).all { it.isDigit() || it.lowercaseChar() in 'a'..'f' } -> sb.append(ch)
+                n in "bfnrt" && !(n2 != null && n2.isLetter() && n2.code < 128) -> sb.append(ch)
+                else -> sb.append("\\\\")
+            }
+            i++
+        }
+        return sb.toString()
     }
 
     /** API-র পুরো উত্তর (JSON) থেকে লেখা অংশটুকু নেয়। */

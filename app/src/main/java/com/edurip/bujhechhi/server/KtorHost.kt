@@ -139,6 +139,22 @@ class KtorHost(
                     call.respondText("not found", status = HttpStatusCode.NotFound)
                 }
             }
+            // গণিতের সূত্র দেখানোর KaTeX — অ্যাপের ভেতরেই আছে, ইন্টারনেট লাগে না
+            get("/k/{name}") {
+                when (val name = call.parameters["name"].orEmpty()) {
+                    "katex.min.js" -> call.respondAsset("student/k/$name", ContentType("application", "javascript"), "public, max-age=86400")
+                    "katex.min.css" -> call.respondAsset("student/k/$name", ContentType("text", "css"), "public, max-age=86400")
+                    else -> call.respondText("not found", status = HttpStatusCode.NotFound)
+                }
+            }
+            get("/k/fonts/{name}") {
+                val name = call.parameters["name"].orEmpty()
+                if (Regex("KaTeX_[A-Za-z0-9\\-]+\\.woff2").matches(name)) {
+                    call.respondAsset("student/k/fonts/$name", ContentType("font", "woff2"), "public, max-age=604800")
+                } else {
+                    call.respondText("not found", status = HttpStatusCode.NotFound)
+                }
+            }
             get("/health") { call.respondText("ok") }
             // শিক্ষকের শেয়ার করা প্রশ্নের ছবি। কোড মিললে, শেয়ার দেখানো অবস্থায় থাকলে তবেই দেয়।
             get("/img/{id}/{page}") {

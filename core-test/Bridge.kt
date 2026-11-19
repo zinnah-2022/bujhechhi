@@ -36,6 +36,13 @@ fun main() {
                     "start" -> { val s = core.startSession(cmd.getOrElse(1) { "ক্লাস" }); reply(Json.write(mapOf("code" to s.code, "id" to s.id))) }
                     "topic" -> { core.setTopic(cmd[1]); reply("{}") }
                     "quiz" -> { val a = cmd[1].split(" "); reply(Json.write(mapOf("ok" to core.startQuiz(quiz, a[0], a[1].toInt())))) }
+                    "mathquiz" -> {
+                        val d = "$"
+                        val mq = QuizSet(2, "গণিত", listOf(
+                            Question("${d}\\frac{1}{2}+\\frac{1}{3}${d} কত? দাম ${d}5 ও ${d}6 টাকা", listOf("${d}\\frac{5}{6}${d}", "${d}\\sqrt{2}${d}", "${d}x^2+y^2${d}", "<b>না</b> ${d}\\badcmd{${d}"), 0, "সূত্র: ${d}${d}\\frac{a}{b}+\\frac{c}{d}=\\frac{ad+bc}{bd}${d}${d} <i>ok</i>"),
+                        ))
+                        reply(Json.write(mapOf("ok" to core.startQuiz(mq, "all", 30))))
+                    }
                     "reveal" -> { core.quizReveal(); reply("{}") }
                     "next" -> reply(Json.write(mapOf("ok" to core.quizNext())))
                     "quizend" -> { core.quizEnd(); reply("{}") }

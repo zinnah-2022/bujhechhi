@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.edurip.bujhechhi.core.AiQuiz
+import com.edurip.bujhechhi.core.CsvQuiz
 import com.edurip.bujhechhi.core.Question
 import com.edurip.bujhechhi.core.QuizSet
 import com.edurip.bujhechhi.data.Settings
@@ -101,6 +102,38 @@ fun QuizEditorScreen(id: Long, onBack: () -> Unit) {
     var brainOpen by remember { mutableStateOf(false) }
     var brainText by remember { mutableStateOf(Settings.aiBrain) }
     var brainOn by remember { mutableStateOf(Settings.aiBrain.isNotBlank()) }
+
+    // CSV
+    var csvText by rememberSaveable { mutableStateOf("") }
+    var csvMsg by remember { mutableStateOf("") }
+    val previews = remember { mutableStateListOf<Long>() }
+
+    fun addCsv() {
+        val r = CsvQuiz.parse(csvText)
+        if (r.questions.isNotEmpty()) {
+            if (qs.size == 1 && qs[0].text.isBlank() && qs[0].opts.all { it.isBlank() }) qs.clear()
+            r.questions.forEach { qs.add(it.toEdit()) }
+            csvText = ""
+        }
+        csvMsg = buildString {
+            if (r.questions.isNotEmpty()) append("✅ ${bn(r.questions.size)}টি প্রশ্ন যোগ হয়েছে। নিচে দেখে নিন।")
+            if (r.errors.isNotEmpty()) {
+                if (isNotEmpty()) append("\n")
+                append("⚠️ ${bn(r.errors.size)}টি সমস্যা:\n").append(r.errors.take(5).joinToString("\n"))
+                if (r.errors.size > 5) append("\n…")
+            }
+        }
+    }
+
+    val csvPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val t = withContext(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
+            }
+            if (t.isNullOrBlank()) csvMsg = "❌ ফাইল পড়া যায়নি" else { csvText = t.take(200_000); addCsv() }
+        }
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
@@ -330,11 +363,54 @@ fun QuizEditorScreen(id: Long, onBack: () -> Unit) {
                 }
             }
 
+            item {
+                BjCard {
+                    Text("📋 CSV থেকে প্রশ্ন", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Muted("Excel/Google Sheet থেকে কপি করে এখানে বসান, অথবা CSV ফাইল বাছুন। প্রতি লাইনে একটি প্রশ্ন:", Modifier.padding(top = 2.dp), size = 13)
+                    Box(
+                        Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant).padding(10.dp),
+                    ) {
+                        Text(
+                            "প্রশ্ন, অপশন A, অপশন B, অপশন C, অপশন D, সঠিক, ব্যাখ্যা\n" +
+                                "২+৩ কত?, ৪, ৫, ৬, ৭, B, যোগফল ৫\n" +
+                                "\"${'$'}\\frac{1}{2}+\\frac{1}{3}${'$'} কত?\", ${'$'}\\frac{5}{6}${'$'}, ${'$'}\\frac{2}{5}${'$'}, ${'$'}\\frac{1}{6}${'$'}, ${'$'}1${'$'}, A",
+                            fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        )
+                    }
+                    Muted("• সঠিক উত্তর: A/B/C/D, ১-৪ বা ক/খ/গ/ঘ  • ব্যাখ্যা ঐচ্ছিক  • গণিত ${'$'}...${'$'} এর ভেতরে (LaTeX)  • কমা থাকলে ঘরটি \"…\" দিয়ে ঘিরুন  • প্রথম লাইন শিরোনাম হলে বাদ যাবে", Modifier.padding(top = 6.dp), size = 12)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = csvText,
+                        onValueChange = { csvText = it },
+                        label = { Text("এখানে CSV বসান") },
+                        minLines = 3,
+                        maxLines = 8,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { csvPicker.launch("*/*") }, modifier = Modifier.weight(1f)) { Text("📂 ফাইল বাছুন") }
+                        PrimaryButton("➕ যোগ করুন", { addCsv() }, Modifier.weight(1f), enabled = csvText.isNotBlank())
+                    }
+                    if (csvMsg.isNotEmpty()) Text(csvMsg, modifier = Modifier.padding(top = 8.dp), fontSize = 13.sp)
+                }
+            }
+
             itemsIndexed(qs, key = { _, q -> q.key }) { i, q ->
                 BjCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("প্রশ্ন ${bn(i + 1)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                        if (q.text.contains('$') || q.opts.any { it.contains('$') } || q.text.contains("\\(")) {
+                            TextButton(onClick = { if (!previews.remove(q.key)) previews.add(q.key) }) {
+                                Text(if (previews.contains(q.key)) "✕ প্রিভিউ" else "👁 গণিত প্রিভিউ")
+                            }
+                        }
                         TextButton(onClick = { if (qs.size > 1) qs.removeAt(i) else qs[i] = blank() }) { Text("মুছুন", color = Red) }
+                    }
+                    if (previews.contains(q.key)) {
+                        MathPreview(q.text, q.opts, q.expl, q.correct)
+                        Spacer(Modifier.height(6.dp))
                     }
                     OutlinedTextField(
                         value = q.text,

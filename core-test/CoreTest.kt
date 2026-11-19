@@ -166,6 +166,7 @@ fun main() {
     unicodeTest()
     shareTest()
     castTest()
+    csvMathTest()
     println(if (fails == 0) "\nALL PASSED" else "\n$fails FAILED")
     System.exit(if (fails == 0) 0 else 1)
 }
@@ -293,4 +294,38 @@ fun castTest() {
     hub.touch("x"); check("hub: short cid ignored", hub.viewers() == 0)
     hub.reset()
     check("hub: reset", hub.peek(0) == null)
+}
+
+fun csvMathTest() {
+    val D = "$"
+    // CSV: শিরোনাম, উদ্ধৃত ঘরে কমা, ক-ঘ ও সংখ্যা, ব্যাখ্যা, গণিত
+    val csv = "প্রশ্ন,অপশন A,অপশন B,অপশন C,অপশন D,সঠিক,ব্যাখ্যা\n" +
+        "২+৩ কত?,৪,৫,৬,৭,B,যোগফল ৫\n" +
+        "\"কোনটি বড়, ৩ না ৫?\",৩,৫,সমান,জানা নেই,খ,\n" +
+        "\"${D}\\frac{1}{2}+\\frac{1}{3}${D} কত?\",${D}\\frac{5}{6}${D},${D}\\frac{2}{5}${D},${D}\\frac{1}{6}${D},${D}1${D},1,\"১/২ + ১/৩, ছেদ ৬\"\n" +
+        "\n" +
+        "খারাপ,ক,খ\n" +
+        "আরেক,১,২,৩,৪,Z\n" +
+        "\"দুই লাইনের\nপ্রশ্ন\",a,b,c,d,ঘ\n"
+    val r = CsvQuiz.parse("\uFEFF" + csv)
+    check("csv: 4 valid questions", r.questions.size == 4)
+    check("csv: letter answer", r.questions[0].correct == 1 && r.questions[0].explanation == "যোগফল ৫")
+    check("csv: quoted comma + bangla letter", r.questions[1].text == "কোনটি বড়, ৩ না ৫?" && r.questions[1].correct == 1)
+    check("csv: latex kept, numeric answer, comma in explanation", r.questions[2].text.startsWith("${D}\\frac{1}{2}") && r.questions[2].correct == 0 && r.questions[2].explanation == "১/২ + ১/৩, ছেদ ৬")
+    check("csv: multiline cell", r.questions[3].text == "দুই লাইনের\nপ্রশ্ন" && r.questions[3].correct == 3)
+    check("csv: 2 errors reported", r.errors.size == 2)
+    val tsv = CsvQuiz.parse("q1\ta\tb\tc\td\t3\tex\nq2\tx\ty\tz\tw\tw")
+    check("tsv (excel paste) works incl. answer by option text", tsv.questions.size == 2 && tsv.questions[0].correct == 2 && tsv.questions[1].correct == 3)
+    val three = CsvQuiz.parse("আকাশ নীল?,হ্যাঁ,না,জানি না,B")
+    check("csv: 3 options", three.questions.size == 1 && three.questions[0].options.size == 3 && three.questions[0].correct == 1)
+    check("csv empty", CsvQuiz.parse("  ").questions.isEmpty())
+
+    // এআই-এর একক-ব্যাকস্ল্যাশ LaTeX ঠিক হয়
+    val bad = "[{\"q\":\"${D}\\frac{1}{2}${D} এবং ${D}\\beta \\times 3${D}\",\"o\":[\"${D}\\sqrt{2}${D}\",\"${D}\\theta${D}\",\"c\",\"d\"],\"c\":1,\"e\":\"ঠিক \\\\ আছে \\n নতুন\"}]"
+    val q = AiQuiz.parseQuestions(bad)
+    check("ai latex repaired", q.size == 1 && q[0].text == "${D}\\frac{1}{2}${D} এবং ${D}\\beta \\times 3${D}" && q[0].options[0] == "${D}\\sqrt{2}${D}" && q[0].options[1] == "${D}\\theta${D}")
+    val good = "[{\"q\":\"${D}\\\\frac{1}{2}${D}\",\"o\":[\"a\",\"b\"],\"c\":0,\"e\":\"x\\nয\"}]"
+    val g = AiQuiz.parseQuestions(good)
+    check("ai already-escaped latex kept; real \\n kept", g.size == 1 && g[0].text == "${D}\\frac{1}{2}${D}" && g[0].explanation == "x\nয")
+    check("prompt asks for latex", AiQuiz.buildPrompt("t", 5, "সহজ").contains("LaTeX"))
 }

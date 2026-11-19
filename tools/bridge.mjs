@@ -31,7 +31,7 @@ java.stdout.on('data', (d) => {
   }
 });
 
-const mime = { '.html': 'text/html; charset=utf-8', '.woff2': 'font/woff2' };
+const mime = { '.html': 'text/html; charset=utf-8', '.woff2': 'font/woff2', '.css': 'text/css', '.js': 'application/javascript' };
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/drop') { for (const w of conns.values()) w.terminate(); res.writeHead(200); return res.end('dropped'); }
@@ -75,7 +75,7 @@ const server = http.createServer((req, res) => {
     java.stdin.write(`T imgok ${im[1]} ${im[2]} ${url.searchParams.get('c') || ''} ${url.searchParams.get('dl') === '1' ? 1 : 0}\n`);
     return;
   }
-  let f = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\/f\//, 'f/');
+  let f = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\/(f|k)\//, '$1/');
   const full = path.join(assets, f);
   if (!full.startsWith(assets) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) { res.writeHead(404); return res.end('nf'); }
   res.writeHead(200, { 'content-type': mime[path.extname(full)] || 'application/octet-stream', 'cache-control': 'no-store' });
