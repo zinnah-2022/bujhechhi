@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
@@ -130,16 +131,27 @@ fun ShareTab(share: LiveShare?) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (share == null) {
-            BjCard(Modifier.fillMaxWidth()) {
-                Text("📄 প্রশ্ন শেয়ার", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Muted("প্রশ্নের ছবি তুলুন বা PDF দিন। তারপর সবাইকে দেখালে সবার ফোনের পর্দায় খুলবে, জুম করা যাবে।", Modifier.padding(top = 4.dp), size = 14)
-                Spacer(Modifier.height(12.dp))
-                PrimaryButton(if (busy) "প্রস্তুত হচ্ছে…" else "📷  ক্যামেরায় ছবি তুলুন", { openCamera() }, Modifier.fillMaxWidth(), enabled = !busy)
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { gallery.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("🖼️  গ্যালারি থেকে ছবি (একাধিক হলে একসাথে)") }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { pdf.launch("application/pdf") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("📑  PDF দিন (সর্বোচ্চ ${bn(MAX_PAGES)} পাতা)") }
+            Column(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF3949AB), Color(0xFF5C6BC0))))
+                    .padding(18.dp),
+            ) {
+                Text("📄 প্রশ্ন শেয়ার", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.White)
+                Text(
+                    "প্রশ্নের ছবি তুলুন বা PDF দিন। সবাইকে দেখালে সবার ফোনে খুলবে, জুম করা যাবে।",
+                    fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f), modifier = Modifier.padding(top = 4.dp),
+                )
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PickTile("📷", "ক্যামেরা", "ছবি তুলুন", Color(0xFFE8F5E9), Color(0xFF2E7D32), !busy, Modifier.weight(1f)) { openCamera() }
+                PickTile("🖼️", "গ্যালারি", "একাধিক ছবি", Color(0xFFE3F2FD), Color(0xFF1565C0), !busy, Modifier.weight(1f)) { gallery.launch("image/*") }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PickTile("📑", "PDF", "সর্বোচ্চ ${bn(MAX_PAGES)} পাতা", Color(0xFFFFF3E0), Color(0xFFE65100), !busy, Modifier.weight(1f)) { pdf.launch("application/pdf") }
+                Spacer(Modifier.weight(1f))
+            }
+            if (busy) Text("⏳ প্রস্তুত হচ্ছে…", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         } else {
             ShareControls(share, busy, { openCamera() }, { gallery.launch("image/*") }, { pdf.launch("application/pdf") })
         }
@@ -412,5 +424,26 @@ private object Pages {
             }
         }
         return out
+    }
+}
+
+@Composable
+private fun PickTile(icon: String, title: String, sub: String, bg: Color, fg: Color, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier
+            .height(120.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(bg)
+            .border(1.dp, fg.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(12.dp),
+        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(Modifier.size(52.dp).clip(CircleShape).background(Color.White), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            Text(icon, fontSize = 26.sp)
+        }
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = fg, modifier = Modifier.padding(top = 8.dp))
+        Text(sub, fontSize = 11.sp, color = fg.copy(alpha = 0.75f))
     }
 }
