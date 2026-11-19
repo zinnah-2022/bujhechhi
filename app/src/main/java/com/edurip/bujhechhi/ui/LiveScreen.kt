@@ -407,7 +407,8 @@ private fun StudentTile(s: LiveStudent, onClick: () -> Unit) {
             .fillMaxWidth()
             .alpha(if (s.online) 1f else 0.5f)
             .clip(shape)
-            .background(if (s.status == null) MaterialTheme.colorScheme.surface else c.copy(alpha = 0.16f))
+            // সাদা নাম যেন সবসময় পড়া যায়: গাঢ় জমির ওপর সাদা লেখা
+            .background(if (s.status == null) Color(0xFF2B2D5E) else androidx.compose.ui.graphics.lerp(c, Color.Black, 0.45f))
             .border(BorderStroke(2.dp, if (s.status == null) MaterialTheme.colorScheme.outline else c), shape)
             .clickable(onClick = onClick)
             .padding(12.dp),
@@ -415,7 +416,7 @@ private fun StudentTile(s: LiveStudent, onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(10.dp).clip(RoundedCornerShape(99.dp)).background(c))
             Spacer(Modifier.width(8.dp))
-            Text(s.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(s.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, color = Color.White, modifier = Modifier.weight(1f))
             if (s.shared) Text("📱", fontSize = 14.sp)
         }
         Spacer(Modifier.height(4.dp))
@@ -426,7 +427,7 @@ private fun StudentTile(s: LiveStudent, onClick: () -> Unit) {
             }
             if (!s.online) append("  ·  অফলাইন")
         }
-        Text(sub, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+        Text(sub, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 2)
     }
 }
 
