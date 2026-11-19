@@ -318,6 +318,8 @@ fun csvMathTest() {
     check("tsv (excel paste) works incl. answer by option text", tsv.questions.size == 2 && tsv.questions[0].correct == 2 && tsv.questions[1].correct == 3)
     val three = CsvQuiz.parse("আকাশ নীল?,হ্যাঁ,না,জানি না,B")
     check("csv: 3 options", three.questions.size == 1 && three.questions[0].options.size == 3 && three.questions[0].correct == 1)
+    val demo = CsvQuiz.parse(CsvQuiz.DEMO)
+    check("demo csv: 4 questions, no errors, math kept", demo.questions.size == 4 && demo.errors.isEmpty() && demo.questions[1].text.startsWith("${D}\\frac{1}{2}") && demo.questions[2].options[0] == "${D}2, 3${D}" && demo.questions[3].correct == 2)
     check("csv empty", CsvQuiz.parse("  ").questions.isEmpty())
 
     // এআই-এর একক-ব্যাকস্ল্যাশ LaTeX ঠিক হয়

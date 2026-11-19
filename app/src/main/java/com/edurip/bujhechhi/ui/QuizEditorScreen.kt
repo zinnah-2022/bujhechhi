@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -125,13 +126,46 @@ fun QuizEditorScreen(id: Long, onBack: () -> Unit) {
         }
     }
 
+    var csvName by remember { mutableStateOf("") }
     val csvPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             val t = withContext(Dispatchers.IO) {
                 runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
             }
-            if (t.isNullOrBlank()) csvMsg = "❌ ফাইল পড়া যায়নি" else { csvText = t.take(200_000); addCsv() }
+            val nm = withContext(Dispatchers.IO) {
+                runCatching {
+                    ctx.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                }.getOrNull()
+            }
+            if (t.isNullOrBlank()) { csvMsg = "❌ ফাইল পড়া যায়নি"; csvName = "" } else { csvText = t.take(200_000); csvName = nm ?: "CSV ফাইল"; csvMsg = "" }
+        }
+    }
+
+    fun saveDemo() {
+        try {
+            val bytes = CsvQuiz.DEMO.toByteArray(Charsets.UTF_8)
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                val v = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Downloads.DISPLAY_NAME, "bujhechhi-demo.csv")
+                    put(android.provider.MediaStore.Downloads.MIME_TYPE, "text/csv")
+                }
+                val u = ctx.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v)
+                ctx.contentResolver.openOutputStream(u!!)!!.use { it.write(bytes) }
+                Toast.makeText(ctx, "ডাউনলোড ফোল্ডারে সেভ হয়েছে: bujhechhi-demo.csv", Toast.LENGTH_LONG).show()
+            } else {
+                val f = java.io.File(ctx.cacheDir, "csv").apply { mkdirs() }.resolve("bujhechhi-demo.csv").also { it.writeBytes(bytes) }
+                val u = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+                ctx.startActivity(
+                    android.content.Intent.createChooser(
+                        android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/csv")
+                            .putExtra(android.content.Intent.EXTRA_STREAM, u).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                        "ডেমো CSV",
+                    ),
+                )
+            }
+        } catch (e: Exception) {
+            Toast.makeText(ctx, "ডেমো ফাইল সেভ করা যায়নি", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -364,34 +398,25 @@ fun QuizEditorScreen(id: Long, onBack: () -> Unit) {
 
             item {
                 BjCard {
-                    Text("📋 CSV থেকে প্রশ্ন", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Muted("Excel/Google Sheet থেকে কপি করে এখানে বসান, অথবা CSV ফাইল বাছুন। প্রতি লাইনে একটি প্রশ্ন:", Modifier.padding(top = 2.dp), size = 13)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("📋 CSV থেকে প্রশ্ন", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { saveDemo() }) { Text("⬇ ডেমো CSV", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                    }
+                    Spacer(Modifier.height(6.dp))
                     Box(
-                        Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant).padding(10.dp),
+                        Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(12.dp))
+                            .border(androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary), RoundedCornerShape(12.dp))
+                            .clickable { csvPicker.launch("*/*") },
+                        contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            "প্রশ্ন, অপশন A, অপশন B, অপশন C, অপশন D, সঠিক, ব্যাখ্যা\n" +
-                                "২+৩ কত?, ৪, ৫, ৬, ৭, B, যোগফল ৫\n" +
-                                "\"${'$'}\\frac{1}{2}+\\frac{1}{3}${'$'} কত?\", ${'$'}\\frac{5}{6}${'$'}, ${'$'}\\frac{2}{5}${'$'}, ${'$'}\\frac{1}{6}${'$'}, ${'$'}1${'$'}, A",
-                            fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            if (csvName.isEmpty()) "📂  CSV ফাইল আপলোড করুন" else "✅  $csvName",
+                            fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                     }
-                    Muted("• সঠিক উত্তর: A/B/C/D, ১-৪ বা ক/খ/গ/ঘ  • ব্যাখ্যা ঐচ্ছিক  • গণিত ${'$'}...${'$'} এর ভেতরে (LaTeX)  • কমা থাকলে ঘরটি \"…\" দিয়ে ঘিরুন  • প্রথম লাইন শিরোনাম হলে বাদ যাবে", Modifier.padding(top = 6.dp), size = 12)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = csvText,
-                        onValueChange = { csvText = it },
-                        label = { Text("এখানে CSV বসান") },
-                        minLines = 3,
-                        maxLines = 8,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { csvPicker.launch("*/*") }, modifier = Modifier.weight(1f)) { Text("📂 ফাইল বাছুন") }
-                        PrimaryButton("➕ যোগ করুন", { addCsv() }, Modifier.weight(1f), enabled = csvText.isNotBlank())
-                    }
+                    PrimaryButton("সাবমিট", { addCsv(); csvName = ""; csvText = "" }, Modifier.fillMaxWidth(), enabled = csvText.isNotBlank())
                     if (csvMsg.isNotEmpty()) Text(csvMsg, modifier = Modifier.padding(top = 8.dp), fontSize = 13.sp)
                 }
             }
