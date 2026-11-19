@@ -164,6 +164,7 @@ fun main() {
     check("student stats", stats.first { it.name == "করিম" }.red == 1 && stats.first { it.name == "রিয়া" }.green == 1)
 
     unicodeTest()
+    shareTest()
     println(if (fails == 0) "\nALL PASSED" else "\n$fails FAILED")
     System.exit(if (fails == 0) 0 else 1)
 }
@@ -178,4 +179,77 @@ fun unicodeTest() {
     core.onMessage("b", """{"t":"hello","cid":"device-bbbb","code":"${s.code}"}""")
     core.onMessage("b", Json.write(mapOf("t" to "join", "name" to "রিয়া"))) // য + nukta
     check("bengali ya-nukta forms map to the same student", tr.last("b", "err")?.str("c") == "taken" && core.snapshot().students.size == 1)
+}
+
+fun shareTest() {
+    val store = MemStore()
+    val core = ClassCore(store)
+    val tr = Rec(); core.transport = tr
+    check("share without session", core.shareSet(3) == 0L)
+    val s = core.startSession("share")
+    core.onMessage("a", """{"t":"hello","cid":"device-aaaa","code":"${s.code}"}""")
+    core.onMessage("a", Json.write(mapOf("t" to "join", "name" to "রিয়া")))
+    check("no share initially", tr.last("a", "state")?.get("sh") == null)
+
+    val id = core.shareSet(3)
+    check("share id", id > 0)
+    check("hidden by default: not served", !core.shareAllowed(id, 0, s.code, false))
+    check("hidden: state has no sh", tr.last("a", "state")?.get("sh") == null)
+
+    tr.clear()
+    core.shareShow(true)
+    val sh = tr.last("a", "state")?.get("sh").asMap()
+    check("visible: state has sh", sh != null && sh.long("id") == id && sh.int("n") == 3 && sh.int("p") == 0 && sh.int("sv") == 0)
+    check("served when visible", core.shareAllowed(id, 0, s.code, false) && core.shareAllowed(id, 2, s.code, false))
+    check("wrong code refused", !core.shareAllowed(id, 0, "9999", false))
+    check("page out of range refused", !core.shareAllowed(id, 3, s.code, false))
+    check("old id refused", !core.shareAllowed(id + 1, 0, s.code, false))
+    check("download refused by default", !core.shareAllowed(id, 0, s.code, true))
+    core.shareAllowSave(true)
+    check("download allowed after toggle", core.shareAllowed(id, 0, s.code, true))
+    check("state sv=1", tr.last("a", "state")?.get("sh").asMap()?.int("sv") == 1)
+
+    core.shareGoto(2)
+    check("page sync", tr.last("a", "state")?.get("sh").asMap()?.int("p") == 2)
+    core.shareGoto(99)
+    check("page clamped", core.snapshot().share?.page == 2)
+
+    // drawing
+    tr.clear()
+    val k = core.shareDrawStart("#2563EB", listOf(0.1, 0.2, 0.15, 0.25))
+    check("stroke key", k > 0)
+    val d1 = tr.last("a", "sd")
+    check("sd start sent", d1 != null && d1.int("k") == k && d1.int("a") == 0 && d1.int("p") == 2 && d1["pts"].asList()!!.size == 4)
+    core.shareDrawMore(k, listOf(0.3, 0.35, 2.0, -1.0))
+    val d2 = tr.last("a", "sd")!!
+    check("sd append sent", d2.int("a") == 1 && d2["pts"].asList()!!.size == 4)
+    check("coords clamped", (d2["pts"].asList()!![2] as Number).toDouble() == 1.0 && (d2["pts"].asList()!![3] as Number).toDouble() == 0.0)
+    check("snapshot strokes", core.snapshot().share?.strokes?.single()?.pts?.size == 8)
+    check("bad color replaced", run { val k2 = core.shareDrawStart("red;x", listOf(0.5, 0.5)); core.snapshot().share!!.strokes.last().color == "#DC2626" && k2 > k })
+
+    // late joiner gets existing strokes
+    core.onMessage("b", """{"t":"hello","cid":"device-bbbb","code":"${s.code}"}""")
+    val late = tr.last("b", "state")?.get("sh").asMap()
+    check("late join gets strokes", late != null && late["d"].asList()!!.size == 2)
+
+    core.shareUndo()
+    check("undo", core.snapshot().share?.strokes?.size == 1 && tr.last("a", "state")?.get("sh").asMap()!!["d"].asList()!!.size == 1)
+    core.shareClearDraw()
+    check("clear drawing", core.snapshot().share?.strokes?.isEmpty() == true)
+    core.shareGoto(0)
+    check("strokes are per page", core.snapshot().share?.strokes?.isEmpty() == true)
+
+    // hide stops serving and drops sd
+    core.shareShow(false)
+    tr.clear()
+    core.shareGoto(1)
+    check("hidden: not served", !core.shareAllowed(id, 1, s.code, false))
+    check("hidden: draw not broadcast", run { core.shareDrawStart("#DC2626", listOf(0.1, 0.1)); tr.last("a", "sd") == null })
+
+    core.shareRemove()
+    check("removed", core.snapshot().share == null && !core.shareAllowed(id, 0, s.code, false))
+    val id2 = core.shareSet(1)
+    check("new share new id", id2 > id)
+    core.endSession()
+    check("ended clears share", core.snapshot().share == null)
 }

@@ -140,6 +140,25 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;white-space:nowrap;over
 .row{display:flex;gap:10px;margin-top:14px}
 .row .primary{flex:1}
 
+
+/* প্রশ্ন শেয়ার ভিউয়ার */
+#viewer{position:fixed;inset:0;z-index:30;background:#0b0b14;display:flex;flex-direction:column;color:#fff}
+#viewer[hidden]{display:none}
+.vbar{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:rgba(20,20,40,.96)}
+.vbar .vt{flex:1;font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vbar button{padding:8px 13px;border-radius:12px;background:rgba(255,255,255,.14);color:#fff;font-weight:600;font-size:15px;white-space:nowrap}
+.vbar button[hidden]{display:none}
+#vstage{flex:1;position:relative;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#vwrap{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;background:#fff}
+#vimg,#vcan{position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:none;-webkit-user-drag:none;user-select:none}
+#vmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:17px;color:#cbd0f0;pointer-events:none}
+#vmsg.tap{pointer-events:auto}
+.vfoot{padding:6px 12px calc(8px + env(safe-area-inset-bottom));text-align:center;font-size:13px;color:#9a9fc0;background:rgba(20,20,40,.96)}
+#shareFab{position:fixed;right:14px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:25;padding:13px 18px;border-radius:99px;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-weight:700;font-size:16px;box-shadow:0 8px 24px rgba(67,56,202,.45);animation:pulse 1.8s 3}
+#shareFab[hidden]{display:none}
+@keyframes pulse{50%{transform:scale(1.07)}}
+
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,30px);background:#1f2040;color:#fff;
   padding:11px 18px;border-radius:14px;font-size:15.5px;opacity:0;pointer-events:none;transition:all .25s;z-index:40;max-width:90vw;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
@@ -163,6 +182,19 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;white-space:nowrap;over
     </div>
   </div>
 </div>
+<div id="viewer" hidden>
+  <div class="vbar">
+    <div class="vt" id="vtitle">📄 প্রশ্ন</div>
+    <button id="vsave" type="button" hidden>⬇ সেভ</button>
+    <button id="vmin" type="button">✕ ছোট করুন</button>
+  </div>
+  <div id="vstage">
+    <div id="vwrap"><img id="vimg" alt="" draggable="false"><canvas id="vcan"></canvas></div>
+    <div id="vmsg"></div>
+  </div>
+  <div class="vfoot" id="vfoot">দুই আঙুলে জুম করুন · দুইবার ট্যাপ করলেও জুম হবে</div>
+</div>
+<button id="shareFab" type="button" hidden>📄 প্রশ্ন দেখুন</button>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -254,6 +286,7 @@ function handle(m) {
       var tidChanged = lastTid !== null && lastTid !== m.tid && m.tid !== 0;
       lastTid = m.tid;
       render();
+      shareUpdate(m.sh || null);
       if (tidChanged) { flashTopic(); buzz(60); }
       if (!m.profiles.length && !sheetOpen) openSheet();
       else if (m.profiles.length && sheetOpen && sheetJoinedPending) closeSheet();
@@ -262,8 +295,10 @@ function handle(m) {
       active = m.sid; sheetJoinedPending = true; break;
     case 'roster':
       roster = m.list || []; renderSugs(); break;
+    case 'sd':
+      onDraw(m); break;
     case 'ended':
-      phase = 'ended'; online = false; try { ws && ws.close(); } catch (e) {} ws = null; closeSheet(); render(); break;
+      phase = 'ended'; online = false; try { ws && ws.close(); } catch (e) {} ws = null; closeSheet(); shareUpdate(null); render(); break;
     case 'pong': break;
     case 'err': onErr(m.c); break;
   }
@@ -524,6 +559,175 @@ $('#sugWrap').addEventListener('click', function (e) {
   var b = e.target.closest ? e.target.closest('.sug') : null;
   if (!b || b.disabled) return;
   $('#nameIn').value = b.getAttribute('data-name'); submitJoin();
+});
+
+
+// ---------------------------------------------------------------- প্রশ্ন শেয়ার ভিউয়ার (জুম, শিক্ষকের দাগ)
+var V = { id: 0, p: -1, n: 0, sv: 0, strokes: [], open: false, minimized: false, ok: false,
+          z: 1, tx: 0, ty: 0, fit: 1, w: 0, h: 0, natW: 0, natH: 0 };
+var vstage = $('#vstage'), vwrap = $('#vwrap'), vimg = $('#vimg'), vcan = $('#vcan'), vmsg = $('#vmsg');
+var vctx = vcan.getContext('2d');
+var MAXZ = 6;
+
+function imgUrl(p, dl) { return '/img/' + V.id + '/' + p + '?c=' + code + (dl ? '&dl=1' : ''); }
+
+function shareUpdate(sh) {
+  if (!sh) {
+    V.id = 0; V.open = false; V.minimized = false; V.ok = false; V.p = -1;
+    $('#viewer').hidden = true; $('#shareFab').hidden = true;
+    return;
+  }
+  var newShare = sh.id !== V.id;
+  var pageChanged = sh.p !== V.p;
+  V.id = sh.id; V.n = sh.n; V.sv = sh.sv ? 1 : 0;
+  V.strokes = (sh.d || []).map(function (s) { return { k: s.k, c: s.c, pts: s.pts.slice() }; });
+  $('#vsave').hidden = !V.sv;
+  if (newShare) { V.minimized = false; V.open = true; buzz(60); }
+  if (newShare || pageChanged) { V.p = sh.p; loadPage(); }
+  else drawStrokes();
+  syncShareUi();
+}
+
+function syncShareUi() {
+  var label = '📄 প্রশ্ন · পাতা ' + bn(V.p + 1) + '/' + bn(V.n);
+  $('#vtitle').textContent = V.n > 1 ? label : '📄 প্রশ্ন';
+  $('#viewer').hidden = !V.open;
+  $('#shareFab').hidden = V.open || !V.id;
+  $('#shareFab').textContent = V.n > 1 ? '📄 প্রশ্ন দেখুন (' + bn(V.p + 1) + '/' + bn(V.n) + ')' : '📄 প্রশ্ন দেখুন';
+}
+
+function loadPage() {
+  V.ok = false; V.z = 1;
+  vmsg.className = ''; vmsg.textContent = 'ছবি আসছে…';
+  vwrap.style.visibility = 'hidden';
+  var my = V.id + ':' + V.p;
+  vimg.onload = function () {
+    if (my !== V.id + ':' + V.p) return;
+    V.natW = vimg.naturalWidth; V.natH = vimg.naturalHeight; V.ok = true;
+    vmsg.textContent = ''; vwrap.style.visibility = 'visible';
+    layoutFit();
+    if (V.p + 1 < V.n) { var pre = new Image(); pre.src = imgUrl(V.p + 1); }
+  };
+  vimg.onerror = function () {
+    if (my !== V.id + ':' + V.p) return;
+    vmsg.className = 'tap'; vmsg.textContent = 'ছবি আসেনি। আবার চেষ্টা করতে এখানে ট্যাপ করুন।';
+  };
+  vimg.src = imgUrl(V.p);
+}
+vmsg.addEventListener('click', function () { if (vmsg.className === 'tap' && V.id) loadPage(); });
+
+function layoutFit() {
+  var sw = vstage.clientWidth, sh = vstage.clientHeight;
+  if (!V.natW || !sw || !sh) return;
+  V.fit = Math.min(sw / V.natW, sh / V.natH);
+  V.w = Math.round(V.natW * V.fit); V.h = Math.round(V.natH * V.fit);
+  vwrap.style.width = V.w + 'px'; vwrap.style.height = V.h + 'px';
+  var scale = Math.min(3, 2400 / V.w);
+  vcan.width = Math.round(V.w * scale); vcan.height = Math.round(V.h * scale);
+  V.z = 1; V.tx = (sw - V.w) / 2; V.ty = (sh - V.h) / 2;
+  applyT(); drawStrokes();
+}
+
+function clampT() {
+  var sw = vstage.clientWidth, sh = vstage.clientHeight;
+  var cw = V.w * V.z, ch = V.h * V.z;
+  V.tx = cw <= sw ? (sw - cw) / 2 : Math.min(0, Math.max(sw - cw, V.tx));
+  V.ty = ch <= sh ? (sh - ch) / 2 : Math.min(0, Math.max(sh - ch, V.ty));
+}
+function applyT() {
+  clampT();
+  vwrap.style.transform = 'translate(' + V.tx + 'px,' + V.ty + 'px) scale(' + V.z + ')';
+}
+function zoomAt(nz, cx, cy) {
+  nz = Math.max(1, Math.min(MAXZ, nz));
+  var k = nz / V.z;
+  V.tx = cx - (cx - V.tx) * k; V.ty = cy - (cy - V.ty) * k; V.z = nz;
+  applyT();
+}
+
+function drawStrokes() {
+  var W = vcan.width, H = vcan.height;
+  vctx.clearRect(0, 0, W, H);
+  vctx.lineCap = 'round'; vctx.lineJoin = 'round';
+  var lw = Math.max(3, W * 0.006);
+  V.strokes.forEach(function (s) {
+    vctx.strokeStyle = s.c; vctx.fillStyle = s.c; vctx.lineWidth = lw;
+    var p = s.pts;
+    if (p.length === 2) { vctx.beginPath(); vctx.arc(p[0] * W, p[1] * H, lw / 2, 0, 6.2832); vctx.fill(); return; }
+    vctx.beginPath();
+    for (var i = 0; i + 1 < p.length; i += 2) {
+      if (i === 0) vctx.moveTo(p[i] * W, p[i + 1] * H); else vctx.lineTo(p[i] * W, p[i + 1] * H);
+    }
+    vctx.stroke();
+  });
+}
+
+// শিক্ষক লাইভ দাগ দিলে
+function onDraw(m) {
+  if (m.id !== V.id || m.p !== V.p) return;
+  var s = null;
+  for (var i = 0; i < V.strokes.length; i++) if (V.strokes[i].k === m.k) { s = V.strokes[i]; break; }
+  if (!s) { s = { k: m.k, c: m.c, pts: [] }; V.strokes.push(s); }
+  if (!m.a) s.pts = [];
+  for (var j = 0; j < m.pts.length; j++) s.pts.push(m.pts[j]);
+  drawStrokes();
+}
+
+// ---- জুম/প্যান: এক আঙুলে টানা, দুই আঙুলে পিঞ্চ, দুইবার ট্যাপ
+var ptrs = {}, lastDist = 0, lastMid = null, lastTap = 0, tapPos = null, moved = false;
+function mid() { var a = Object.keys(ptrs).map(function (k) { return ptrs[k]; }); return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) }; }
+function rel(e) { var r = vstage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+vstage.addEventListener('pointerdown', function (e) {
+  try { vstage.setPointerCapture(e.pointerId); } catch (x) {}
+  ptrs[e.pointerId] = rel(e); moved = false;
+  if (Object.keys(ptrs).length === 2) { var m = mid(); lastDist = m.d; lastMid = { x: m.x, y: m.y }; }
+  tapPos = rel(e);
+});
+vstage.addEventListener('pointermove', function (e) {
+  if (!ptrs[e.pointerId] || !V.ok) return;
+  var n = rel(e), o = ptrs[e.pointerId], keys = Object.keys(ptrs);
+  if (Math.hypot(n.x - o.x, n.y - o.y) > 3) moved = true;
+  if (keys.length === 1) {
+    V.tx += n.x - o.x; V.ty += n.y - o.y; ptrs[e.pointerId] = n; applyT();
+  } else if (keys.length === 2) {
+    ptrs[e.pointerId] = n;
+    var m = mid();
+    if (lastDist > 0) zoomAt(V.z * (m.d / lastDist), m.x, m.y);
+    if (lastMid) { V.tx += m.x - lastMid.x; V.ty += m.y - lastMid.y; applyT(); }
+    lastDist = m.d; lastMid = { x: m.x, y: m.y };
+  }
+});
+function endPtr(e) {
+  var had = !!ptrs[e.pointerId];
+  delete ptrs[e.pointerId];
+  lastDist = 0; lastMid = null;
+  var keys = Object.keys(ptrs);
+  if (keys.length === 1) { /* এক আঙুল বাকি: তার অবস্থান ধরে চলবে */ }
+  if (had && e.type === 'pointerup' && !moved && keys.length === 0 && V.ok) {
+    var now = Date.now();
+    if (now - lastTap < 320) {
+      if (V.z > 1.05) { V.z = 1; applyT(); } else zoomAt(2.5, tapPos.x, tapPos.y);
+      lastTap = 0;
+    } else lastTap = now;
+  }
+}
+vstage.addEventListener('pointerup', endPtr);
+vstage.addEventListener('pointercancel', endPtr);
+vstage.addEventListener('wheel', function (e) {
+  if (!V.ok) return; e.preventDefault();
+  var p = rel(e); zoomAt(V.z * (e.deltaY < 0 ? 1.15 : 1 / 1.15), p.x, p.y);
+}, { passive: false });
+vstage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+window.addEventListener('resize', function () { if (V.open && V.ok) layoutFit(); });
+window.addEventListener('orientationchange', function () { setTimeout(function () { if (V.open && V.ok) layoutFit(); }, 250); });
+
+$('#vmin').addEventListener('click', function () { V.open = false; V.minimized = true; syncShareUi(); });
+$('#shareFab').addEventListener('click', function () { V.open = true; V.minimized = false; syncShareUi(); if (V.ok) layoutFit(); });
+$('#vsave').addEventListener('click', function () {
+  if (!V.sv || !V.id) { toast('শিক্ষক এখন সেভ করার অনুমতি দেননি'); return; }
+  var a = document.createElement('a');
+  a.href = imgUrl(V.p, true); a.download = 'question-' + (V.p + 1) + '.jpg';
+  document.body.appendChild(a); a.click(); a.remove();
 });
 
 // ---------------------------------------------------------------- শুরু

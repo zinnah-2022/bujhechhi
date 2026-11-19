@@ -41,6 +41,16 @@ fun main() {
                     "quizend" -> { core.quizEnd(); reply("{}") }
                     "extend" -> { core.quizExtend(cmd[1].toInt()); reply("{}") }
                     "end" -> reply(Json.write(mapOf("id" to core.endSession())))
+                    "shareset" -> reply(Json.write(mapOf("id" to core.shareSet(cmd[1].toInt()))))
+                    "shareshow" -> { core.shareShow(cmd[1] == "1"); reply("{}") }
+                    "sharegoto" -> { core.shareGoto(cmd[1].toInt()); reply("{}") }
+                    "sharesave" -> { core.shareAllowSave(cmd[1] == "1"); reply("{}") }
+                    "shareremove" -> { core.shareRemove(); reply("{}") }
+                    "drawstart" -> { val a = cmd[1].split(" "); reply(Json.write(mapOf("k" to core.shareDrawStart(a[0], a[1].split(",").map { it.toDouble() })))) }
+                    "drawmore" -> { val a = cmd[1].split(" "); core.shareDrawMore(a[0].toInt(), a[1].split(",").map { it.toDouble() }); reply("{}") }
+                    "undo" -> { core.shareUndo(); reply("{}") }
+                    "cleardraw" -> { core.shareClearDraw(); reply("{}") }
+                    "imgok" -> { val a = cmd[1].split(" "); reply(Json.write(mapOf("ok" to core.shareAllowed(a[0].toLong(), a[1].toInt(), a[2], a[3] == "1")))) }
                     "snap" -> {
                         val s = core.snapshot()
                         reply(Json.write(mapOf(

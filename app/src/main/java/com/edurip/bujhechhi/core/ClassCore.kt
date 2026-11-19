@@ -29,6 +29,18 @@ data class LiveQuiz(
     val revealed: Set<Int>,
 )
 
+data class LiveStroke(val k: Int, val color: String, val pts: List<Double>)
+
+/** শেয়ার করা প্রশ্ন (ছবি/PDF-এর পাতা)। strokes শুধু বর্তমান পাতার দাগ। */
+data class LiveShare(
+    val id: Long,
+    val n: Int,
+    val page: Int,
+    val visible: Boolean,
+    val allowSave: Boolean,
+    val strokes: List<LiveStroke>,
+)
+
 data class LiveSnapshot(
     val active: Boolean,
     val sessionId: Long,
@@ -46,6 +58,7 @@ data class LiveSnapshot(
     val none: Int,
     val alertSeq: Int,
     val quiz: LiveQuiz?,
+    val share: LiveShare? = null,
 ) {
     companion object {
         val EMPTY = LiveSnapshot(
@@ -94,7 +107,21 @@ class ClassCore(
         val revealed = LinkedHashSet<Int>()
     }
 
+    private class Stroke(val k: Int, val color: String) {
+        val pts = ArrayList<Double>()
+    }
+
+    private class Share(val id: Long, val n: Int) {
+        var page = 0
+        var visible = false
+        var allowSave = false
+        var keySeq = 0
+        val strokes = HashMap<Int, ArrayList<Stroke>>()
+    }
+
     private val lock = Any()
+    private var share: Share? = null
+    private var shareSeq = 0L
     private var session: SessionInfo? = null
     private val participants = LinkedHashMap<Long, Participant>()
     private val nameIndex = HashMap<String, Long>()
@@ -163,7 +190,7 @@ class ClassCore(
         val info = SessionInfo(id, t, code, now)
         session = info
         participants.clear(); nameIndex.clear(); devices.clear(); connToCid.clear()
-        topic = null; topicNo = 0; topicHistory.clear(); fb.clear(); run = null
+        topic = null; topicNo = 0; topicHistory.clear(); fb.clear(); run = null; share = null
         alertLatched = false
         roster.clear(); roster.addAll(store.rosterAll())
         dirty = true
@@ -184,7 +211,7 @@ class ClassCore(
         store.sessionEnd(s.id, clock())
         session = null
         participants.clear(); nameIndex.clear(); devices.clear(); connToCid.clear()
-        topic = null; fb.clear(); run = null
+        topic = null; fb.clear(); run = null; share = null
         dirty = true
         return s.id
     }
@@ -277,6 +304,112 @@ class ClassCore(
     fun refreshRoster() = locked {
         roster.clear()
         roster.addAll(store.rosterAll())
+    }
+
+    // ---------------------------------------------------------------- প্রশ্ন শেয়ার (ছবি/PDF পাতা)
+
+    /** নতুন শেয়ার তৈরি (শুরুতে লুকানো)। ছবির ফাইল রাখা ও পাঠানো নেটওয়ার্ক স্তরের কাজ। আইডি ফেরত দেয়, না হলে ০। */
+    fun shareSet(pages: Int): Long = locked {
+        if (session == null || pages !in 1..40) return@locked 0L
+        shareSeq++
+        share = Share(shareSeq, pages)
+        broadcastState()
+        shareSeq
+    }
+
+    fun shareShow(v: Boolean) = locked {
+        val sh = share ?: return@locked
+        if (sh.visible == v) return@locked
+        sh.visible = v
+        broadcastState()
+    }
+
+    fun shareGoto(page: Int) = locked {
+        val sh = share ?: return@locked
+        val p = page.coerceIn(0, sh.n - 1)
+        if (p == sh.page) return@locked
+        sh.page = p
+        broadcastState()
+    }
+
+    fun shareAllowSave(v: Boolean) = locked {
+        val sh = share ?: return@locked
+        if (sh.allowSave == v) return@locked
+        sh.allowSave = v
+        broadcastState()
+    }
+
+    fun shareRemove() = locked {
+        if (share == null) return@locked
+        share = null
+        broadcastState()
+    }
+
+    /** নতুন দাগ শুরু; দাগের কী ফেরত দেয় (না হলে -১)। পয়েন্ট (x,y) ০..১ অনুপাতে, জোড়ায় জোড়ায়। */
+    fun shareDrawStart(color: String, pts: List<Double>): Int = locked {
+        val sh = share ?: return@locked -1
+        val list = sh.strokes.getOrPut(sh.page) { ArrayList() }
+        if (list.size >= 150) return@locked -1
+        val c = if (Regex("#[0-9A-Fa-f]{6}").matches(color)) color else "#DC2626"
+        val st = Stroke(++sh.keySeq, c)
+        addPts(st, pts)
+        list.add(st)
+        sendDraw(sh, st, st.pts.toList(), false)
+        dirty = true
+        st.k
+    }
+
+    fun shareDrawMore(k: Int, pts: List<Double>) = locked {
+        val sh = share ?: return@locked
+        val st = sh.strokes[sh.page]?.firstOrNull { it.k == k } ?: return@locked
+        val before = st.pts.size
+        addPts(st, pts)
+        if (st.pts.size > before) sendDraw(sh, st, st.pts.subList(before, st.pts.size).toList(), true)
+        dirty = true
+    }
+
+    fun shareUndo() = locked {
+        val sh = share ?: return@locked
+        val list = sh.strokes[sh.page] ?: return@locked
+        if (list.isEmpty()) return@locked
+        list.removeAt(list.size - 1)
+        broadcastState()
+    }
+
+    fun shareClearDraw() = locked {
+        val sh = share ?: return@locked
+        if (sh.strokes[sh.page].isNullOrEmpty()) return@locked
+        sh.strokes.remove(sh.page)
+        broadcastState()
+    }
+
+    /** ছবি পরিবেশনের আগে যাচাই: সেশনের কোড মেলা, শেয়ার দেখানো অবস্থায় থাকা, ডাউনলোডে অনুমতি। */
+    fun shareAllowed(id: Long, page: Int, code: String, download: Boolean): Boolean = synchronized(lock) {
+        val s = session ?: return false
+        val sh = share ?: return false
+        code == s.code && sh.id == id && page in 0 until sh.n && sh.visible && (!download || sh.allowSave)
+    }
+
+    private fun addPts(st: Stroke, pts: List<Double>) {
+        var i = 0
+        while (i + 1 < pts.size && st.pts.size < 6000) {
+            val x = Math.round(pts[i].coerceIn(0.0, 1.0) * 10000) / 10000.0
+            val y = Math.round(pts[i + 1].coerceIn(0.0, 1.0) * 10000) / 10000.0
+            st.pts.add(x)
+            st.pts.add(y)
+            i += 2
+        }
+    }
+
+    private fun sendDraw(sh: Share, st: Stroke, pts: List<Double>, append: Boolean) {
+        if (!sh.visible) return
+        val msg = Json.write(
+            mapOf("t" to "sd", "id" to sh.id, "p" to sh.page, "k" to st.k, "c" to st.color, "a" to (if (append) 1 else 0), "pts" to pts),
+        )
+        for (d in devices.values) {
+            val c = d.connId ?: continue
+            out(c, msg)
+        }
     }
 
     fun isActive(): Boolean = synchronized(lock) { session != null }
@@ -506,6 +639,18 @@ class ClassCore(
             )
         }
         val t = topic
+        val sh = share
+        val shareView: Any? = if (sh == null || !sh.visible) {
+            null
+        } else {
+            mapOf(
+                "id" to sh.id,
+                "n" to sh.n,
+                "p" to sh.page,
+                "sv" to (if (sh.allowSave) 1 else 0),
+                "d" to (sh.strokes[sh.page] ?: emptyList<Stroke>()).map { mapOf("k" to it.k, "c" to it.color, "pts" to it.pts) },
+            )
+        }
         return Json.write(
             mapOf(
                 "t" to "state",
@@ -515,6 +660,7 @@ class ClassCore(
                 "topic" to (t?.text ?: ""),
                 "profiles" to profiles,
                 "quiz" to quiz,
+                "sh" to shareView,
             ),
         )
     }
@@ -593,6 +739,12 @@ class ClassCore(
             none = students.size - g - y - rd,
             alertSeq = alertSeq,
             quiz = liveQuiz,
+            share = share?.let { sh ->
+                LiveShare(
+                    sh.id, sh.n, sh.page, sh.visible, sh.allowSave,
+                    (sh.strokes[sh.page] ?: emptyList<Stroke>()).map { LiveStroke(it.k, it.color, ArrayList(it.pts)) },
+                )
+            },
         )
     }
 

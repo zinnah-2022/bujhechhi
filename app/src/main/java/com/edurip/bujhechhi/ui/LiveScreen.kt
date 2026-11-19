@@ -146,8 +146,8 @@ fun LiveScreen(onEnded: (Long) -> Unit, onEditQuiz: (Long) -> Unit) {
         }
 
         TabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.surface) {
-            listOf("ফিডব্যাক", "কুইজ", "কানেকশন").forEachIndexed { i, t ->
-                Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t, fontWeight = FontWeight.SemiBold) })
+            listOf("ফিডব্যাক", "কুইজ", "প্রশ্ন শেয়ার", "কানেকশন").forEachIndexed { i, t ->
+                Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1) })
             }
         }
 
@@ -155,6 +155,7 @@ fun LiveScreen(onEnded: (Long) -> Unit, onEditQuiz: (Long) -> Unit) {
             when (tab) {
                 0 -> FeedbackTab(live)
                 1 -> LiveQuizTab(live, onEditQuiz)
+                2 -> ShareTab(live.share)
                 else -> ConnectTab(live, net)
             }
         }

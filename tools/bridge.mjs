@@ -43,6 +43,19 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  const im = url.pathname.match(/^\/img\/(\d+)\/(\d+)$/);
+  if (im) {
+    replyWaiters.push((r) => {
+      if (!JSON.parse(r).ok) { res.writeHead(404); return res.end('nf'); }
+      const pg = Number(im[2]) + 1;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100" viewBox="0 0 800 1100"><rect width="800" height="1100" fill="#fffef5"/><text x="60" y="120" font-size="54" font-family="sans-serif">প্রশ্ন — পাতা ${pg}</text><text x="60" y="230" font-size="40" font-family="sans-serif">১) ৩/৪ + ১/৪ = ?</text><text x="60" y="330" font-size="40" font-family="sans-serif">২) ২/৫ এর হর কত?</text><rect x="400" y="900" width="300" height="120" fill="#fcd34d"/></svg>`;
+      const h = { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' };
+      if (url.searchParams.get('dl') === '1') h['content-disposition'] = 'attachment; filename="q.svg"';
+      res.writeHead(200, h); res.end(svg);
+    });
+    java.stdin.write(`T imgok ${im[1]} ${im[2]} ${url.searchParams.get('c') || ''} ${url.searchParams.get('dl') === '1' ? 1 : 0}\n`);
+    return;
+  }
   let f = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\/f\//, 'f/');
   const full = path.join(assets, f);
   if (!full.startsWith(assets) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) { res.writeHead(404); return res.end('nf'); }

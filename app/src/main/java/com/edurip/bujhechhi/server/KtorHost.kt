@@ -134,6 +134,25 @@ class KtorHost(private val context: Context, private val core: ClassCore) : Clas
                 }
             }
             get("/health") { call.respondText("ok") }
+            // শিক্ষকের শেয়ার করা প্রশ্নের ছবি। কোড মিললে, শেয়ার দেখানো অবস্থায় থাকলে তবেই দেয়।
+            get("/img/{id}/{page}") {
+                val id = call.parameters["id"]?.toLongOrNull()
+                val page = call.parameters["page"]?.toIntOrNull()
+                val c = call.request.queryParameters["c"].orEmpty()
+                val dl = call.request.queryParameters["dl"] == "1"
+                if (id == null || page == null || !core.shareAllowed(id, page, c, dl)) {
+                    call.respondText("not found", status = HttpStatusCode.NotFound)
+                    return@get
+                }
+                val f = java.io.File(context.filesDir, "share/$id/$page.jpg")
+                if (!f.isFile) {
+                    call.respondText("not found", status = HttpStatusCode.NotFound)
+                    return@get
+                }
+                call.response.header(HttpHeaders.CacheControl, "private, max-age=3600")
+                if (dl) call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"question-${page + 1}.jpg\"")
+                call.respondBytes(f.readBytes(), ContentType.Image.JPEG)
+            }
             webSocket("/ws") {
                 val id = "c" + seq.incrementAndGet()
                 conns[id] = this

@@ -14,6 +14,7 @@ import com.edurip.bujhechhi.data.Settings
 import com.edurip.bujhechhi.data.SqliteStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -72,6 +73,7 @@ object ClassEngine {
         host = h
         core.transport = h
         applySettings()
+        deleteShareFiles()
         val info = core.startSession(title)
         Settings.lastTitle = info.title
         try {
@@ -89,6 +91,7 @@ object ClassEngine {
     @Synchronized
     fun endClass(): Long {
         val id = core.endSession()
+        deleteShareFiles()
         stopTicker()
         val h = host
         host = null
@@ -113,6 +116,38 @@ object ClassEngine {
         }
         _live.value = core.snapshot()
         return id
+    }
+
+    // ---- প্রশ্ন শেয়ার: ছবির পাতাগুলো ফোনে রেখে শেয়ার তৈরি
+
+    private fun shareRoot(): File? = app?.let { File(it.filesDir, "share") }
+
+    private fun deleteShareFiles(except: Long = -1L) {
+        val root = shareRoot() ?: return
+        root.listFiles()?.forEach { d -> if (d.name != except.toString()) d.deleteRecursively() }
+    }
+
+    /** JPEG পাতাগুলো সেভ করে নতুন শেয়ার বানায় (ব্যাকগ্রাউন্ড থ্রেডে ডাকুন)। আইডি ফেরত দেয়, ব্যর্থ হলে ০। */
+    fun shareCreate(pages: List<ByteArray>): Long {
+        val root = shareRoot() ?: return 0L
+        if (pages.isEmpty()) return 0L
+        val id = core.shareSet(pages.size)
+        if (id == 0L) return 0L
+        return try {
+            val dir = File(root, id.toString())
+            dir.mkdirs()
+            pages.forEachIndexed { i, b -> File(dir, "$i.jpg").writeBytes(b) }
+            deleteShareFiles(except = id)
+            id
+        } catch (e: Exception) {
+            core.shareRemove()
+            0L
+        }
+    }
+
+    fun shareRemove() {
+        core.shareRemove()
+        deleteShareFiles()
     }
 
     fun refreshNet(port: Int = host?.port ?: 0) {
