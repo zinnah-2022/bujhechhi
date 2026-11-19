@@ -155,7 +155,6 @@ fun QuizEditorScreen(id: Long, onBack: () -> Unit) {
                 qs.addAll(set.questions.map { it.toEdit() })
             }
         }
-        if (qs.isEmpty()) qs.add(blank())
         loaded = true
     }
 
@@ -406,7 +405,7 @@ fun QuizEditorScreen(id: Long, onBack: () -> Unit) {
                                 Text(if (previews.contains(q.key)) "✕ প্রিভিউ" else "👁 গণিত প্রিভিউ")
                             }
                         }
-                        TextButton(onClick = { if (qs.size > 1) qs.removeAt(i) else qs[i] = blank() }) { Text("মুছুন", color = Red) }
+                        TextButton(onClick = { qs.removeAt(i) }) { Text("মুছুন", color = Red) }
                     }
                     if (previews.contains(q.key)) {
                         MathPreview(q.text, q.opts, q.expl, q.correct)
@@ -445,8 +444,8 @@ fun QuizEditorScreen(id: Long, onBack: () -> Unit) {
                     )
                 }
             }
-            item {
-                OutlinedButton(onClick = { qs.add(blank()) }, modifier = Modifier.fillMaxWidth()) { Text("＋ আরেকটি প্রশ্ন") }
+            if (qs.isEmpty()) {
+                item { Muted("এখনও কোনো প্রশ্ন নেই। ওপরে AI দিয়ে বানান বা CSV থেকে যোগ করুন।", Modifier.fillMaxWidth().padding(vertical = 8.dp), size = 14) }
             }
             item {
                 PrimaryButton(if (saving) "সেভ হচ্ছে…" else "💾  কুইজ সেভ করুন", { save() }, Modifier.fillMaxWidth(), enabled = loaded && !saving)
