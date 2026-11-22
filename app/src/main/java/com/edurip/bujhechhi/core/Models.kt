@@ -50,6 +50,11 @@ interface Store {
     fun rosterFindOrCreate(name: String): StudentRec
     fun rosterDelete(id: Long)
 
+    // নাম ↔ ফোন বাঁধন (প্রথমবার যে ফোনে ঢুকেছে, নামটা সেই ফোনের)
+    fun bindings(): Map<Long, String>
+    fun bindSet(studentId: Long, cid: String)
+    fun bindClear(studentId: Long)
+
     // ক্লাস
     fun sessionCreate(title: String, code: String, startedAt: Long): Long
     fun sessionEnd(id: Long, endedAt: Long)

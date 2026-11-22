@@ -60,6 +60,7 @@ data class LiveSnapshot(
     val red: Int,
     val none: Int,
     val alertSeq: Int,
+    val joinLocked: Boolean = false,
     val quiz: LiveQuiz?,
     val share: LiveShare? = null,
     val cast: LiveCast? = null,
@@ -200,6 +201,8 @@ class ClassCore(
         topic = null; topicNo = 0; topicHistory.clear(); fb.clear(); run = null; share = null; castOn = false; castPaused = false
         alertLatched = false
         roster.clear(); roster.addAll(store.rosterAll())
+        bindings.clear(); bindings.putAll(store.bindings())
+        blockedCids.clear(); kickedSids.clear(); joinLocked = false
         dirty = true
         info
     }
@@ -217,6 +220,7 @@ class ClassCore(
         }
         store.sessionEnd(s.id, clock())
         session = null
+        blockedCids.clear(); kickedSids.clear(); joinLocked = false
         participants.clear(); nameIndex.clear(); devices.clear(); connToCid.clear()
         topic = null; fb.clear(); run = null; share = null; castOn = false; castPaused = false
         dirty = true
@@ -238,15 +242,42 @@ class ClassCore(
         broadcastState()
     }
 
-    fun kick(sid: Long) = locked {
+    /** [block] হলে ওই ফোন এই ক্লাসে আর ঢুকতে পারবে না। */
+    fun kick(sid: Long, block: Boolean = false) = locked {
         val p = participants.remove(sid) ?: return@locked
         nameIndex.remove(nameKey(p.name))
         fb.remove(sid)
+        kickedSids.add(sid)
         val d = devices[p.cid]
         if (d != null) {
             d.sids.remove(sid)
-            pushState(d)
+            if (block) {
+                blockedCids.add(p.cid)
+                d.connId?.let { out(it, err("blocked")); closeQueue.add(it) }
+            } else {
+                pushState(d)
+            }
         }
+        dirty = true
+    }
+
+    /** নামটা ফোন থেকে ছাড়ানো: এখন নতুন ফোনে (বা যে কেউ) নামটা নিতে পারবে। ক্লাস না চললেও কাজ করে। */
+    fun release(sid: Long) = locked {
+        bindings.remove(sid)
+        store.bindClear(sid)
+        val p = participants.remove(sid)
+        if (p != null) {
+            nameIndex.remove(nameKey(p.name))
+            fb.remove(sid)
+            kickedSids.add(sid)
+            devices[p.cid]?.let { d -> d.sids.remove(sid); pushState(d) }
+        }
+        dirty = true
+    }
+
+    /** শিক্ষক "নতুন যোগদান বন্ধ" করলে আগে থেকে যুক্ত/বাঁধা ফোন ছাড়া কেউ ঢুকতে পারবে না। */
+    fun setJoinLocked(b: Boolean) = locked {
+        joinLocked = b
         dirty = true
     }
 
@@ -501,6 +532,9 @@ class ClassCore(
         if (!cidRegex.matches(cid)) {
             out(connId, err("badcid")); return
         }
+        if (cid in blockedCids) {
+            out(connId, err("blocked")); closeQueue.add(connId); return
+        }
         val dev = devices.getOrPut(cid) { Device(cid) }
         val old = dev.connId
         if (old != null && old != connId) {
@@ -511,8 +545,37 @@ class ClassCore(
         connToCid[connId] = cid
         dev.sids.clear()
         for (p in participants.values) if (p.cid == cid) dev.sids.add(p.sid)
+        autoJoin(dev, s)
         out(connId, stateJson(dev))
         dirty = true
+    }
+
+    /** এই ফোনে বাঁধা নামগুলো নিজে থেকেই ক্লাসে যোগ হয় — শিক্ষার্থীকে কিছুই লিখতে হয় না। */
+    private fun autoJoin(dev: Device, s: SessionInfo) {
+        val mine = bindings.entries.filter { it.value == dev.cid }.map { it.key }.sorted()
+        for (sid in mine) {
+            if (sid in participants || sid in kickedSids) continue
+            if (dev.sids.size >= maxProfilesPerDevice || participants.size >= 300) break
+            val rec = roster.firstOrNull { it.id == sid } ?: continue
+            addParticipant(rec, dev, s)
+        }
+    }
+
+    private fun addParticipant(rec: StudentRec, dev: Device, s: SessionInfo): Participant {
+        val p = Participant(rec.id, rec.name, dev.cid)
+        participants[p.sid] = p
+        nameIndex[nameKey(p.name)] = p.sid
+        store.sessionAttend(s.id, p.sid)
+        dev.sids.add(p.sid)
+        dirty = true
+        return p
+    }
+
+    private fun bindIfFree(sid: Long, cid: String) {
+        if (bindings[sid] == null) {
+            bindings[sid] = cid
+            store.bindSet(sid, cid)
+        }
     }
 
     private fun join(dev: Device, m: Map<*, *>) {
@@ -522,11 +585,30 @@ class ClassCore(
         if (name.isEmpty() || name.length > 40) {
             out(connId, err("badname")); return
         }
+        if (dev.cid in blockedCids) {
+            out(connId, err("blocked")); return
+        }
+        val key = nameKey(name)
+        // নামটা আগে থেকে চেনা (এই ক্লাসে বা তালিকায়) হলে তার বাঁধন যাচাই
+        val knownSid = nameIndex[key]?.let { participants[it]?.sid } ?: roster.firstOrNull { nameKey(it.name) == key }?.id
+        val bound = knownSid?.let { bindings[it] }
+        if (bound != null && bound != dev.cid) {
+            out(connId, err("owned")); return
+        }
+        if (joinLocked && bound != dev.cid) {
+            out(connId, err("locked")); return
+        }
+        var existing: Participant? = nameIndex[key]?.let { participants[it] }
+        if (existing != null && existing.cid == dev.cid) {
+            dev.sids.add(existing.sid)
+            bindIfFree(existing.sid, dev.cid)
+            out(connId, joinedJson(existing.sid))
+            pushState(dev)
+            return
+        }
         if (dev.sids.size >= maxProfilesPerDevice) {
             out(connId, err("limit")); return
         }
-        val key = nameKey(name)
-        var existing: Participant? = nameIndex[key]?.let { participants[it] }
         var rec: StudentRec? = null
         if (existing == null) {
             if (participants.size >= 300) {
@@ -539,6 +621,7 @@ class ClassCore(
         if (existing != null) {
             if (existing.cid == dev.cid) {
                 dev.sids.add(existing.sid)
+                bindIfFree(existing.sid, dev.cid)
                 out(connId, joinedJson(existing.sid))
                 pushState(dev)
                 return
@@ -550,27 +633,31 @@ class ClassCore(
             other?.sids?.remove(existing.sid)
             existing.cid = dev.cid
             dev.sids.add(existing.sid)
+            bindIfFree(existing.sid, dev.cid)
             out(connId, joinedJson(existing.sid))
             pushState(dev)
             dirty = true
             return
         }
         val r = rec ?: return
-        val p = Participant(r.id, r.name, dev.cid)
-        participants[p.sid] = p
-        nameIndex[nameKey(p.name)] = p.sid
-        store.sessionAttend(s.id, p.sid)
-        dev.sids.add(p.sid)
+        val p = addParticipant(r, dev, s)
+        kickedSids.remove(p.sid)
+        bindIfFree(p.sid, dev.cid)
         out(connId, joinedJson(p.sid))
         pushState(dev)
         dirty = true
     }
 
+    /** "ভুল নাম? সরিয়ে দিন": ক্লাস থেকে সরে, নামের বাঁধনও ছাড়ে (তাই পরের বার নিজে থেকে যোগ হবে না)। */
     private fun leave(dev: Device, m: Map<*, *>) {
         val sid = m.long("sid") ?: return
         if (!dev.sids.remove(sid)) return
         val p = participants.remove(sid)
         if (p != null) nameIndex.remove(nameKey(p.name))
+        if (bindings[sid] == dev.cid) {
+            bindings.remove(sid)
+            store.bindClear(sid)
+        }
         pushState(dev)
         dirty = true
     }
@@ -611,11 +698,18 @@ class ClassCore(
         dirty = true
     }
 
+    /** শুধু নিজের নাম ও এখনও কারও না-হওয়া নাম পাঠায়; অন্য ফোনে বাঁধা নাম লুকানো থাকে। */
     private fun sendRoster(dev: Device) {
         val connId = dev.connId ?: return
-        val list = roster.sortedBy { it.name.lowercase(Locale.ROOT) }.take(400).map {
-            mapOf("n" to it.name, "j" to if (nameIndex.containsKey(nameKey(it.name))) 1 else 0)
-        }
+        val list = roster
+            .filter { val b = bindings[it.id]; b == dev.cid || (b == null && !joinLocked) }
+            .sortedBy { it.name.lowercase(Locale.ROOT) }.take(400).map {
+                mapOf(
+                    "n" to it.name,
+                    "j" to if (nameIndex.containsKey(nameKey(it.name))) 1 else 0,
+                    "m" to if (bindings[it.id] == dev.cid) 1 else 0,
+                )
+            }
         out(connId, Json.write(mapOf("t" to "roster", "list" to list)))
     }
 
@@ -784,6 +878,7 @@ class ClassCore(
             red = rd,
             none = students.size - g - y - rd,
             alertSeq = alertSeq,
+            joinLocked = joinLocked,
             quiz = liveQuiz,
             cast = if (castOn) LiveCast(castPaused, castQ) else null,
             share = share?.let { sh ->

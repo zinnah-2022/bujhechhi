@@ -16,7 +16,11 @@ class MemStore : Store {
     override fun rosterAll() = roster.toList()
     override fun rosterFindOrCreate(name: String): StudentRec =
         roster.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: StudentRec(nid(), name).also { roster.add(it) }
-    override fun rosterDelete(id: Long) { roster.removeAll { it.id == id } }
+    override fun rosterDelete(id: Long) { roster.removeAll { it.id == id }; bind.remove(id) }
+    val bind = HashMap<Long, String>()
+    override fun bindings(): Map<Long, String> = HashMap(bind)
+    override fun bindSet(studentId: Long, cid: String) { bind[studentId] = cid }
+    override fun bindClear(studentId: Long) { bind.remove(studentId) }
     override fun sessionCreate(title: String, code: String, startedAt: Long): Long { val s = S(nid(), title, code, startedAt); sessions.add(s); return s.id }
     override fun sessionEnd(id: Long, endedAt: Long) { sessions.first { it.id == id }.ended = endedAt }
     override fun sessionAttend(sessionId: Long, studentId: Long) { sessions.first { it.id == sessionId }.att.add(studentId) }

@@ -28,10 +28,16 @@ object Sql {
         "CREATE TABLE quiz_set(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, created INTEGER NOT NULL, body TEXT NOT NULL)",
         "CREATE TABLE run(id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER NOT NULL REFERENCES session(id) ON DELETE CASCADE, snapshot TEXT NOT NULL, mode TEXT NOT NULL, at INTEGER NOT NULL)",
         "CREATE TABLE answer(run_id INTEGER NOT NULL REFERENCES run(id) ON DELETE CASCADE, q_idx INTEGER NOT NULL, student_id INTEGER NOT NULL REFERENCES student(id) ON DELETE CASCADE, opt INTEGER NOT NULL, correct INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(run_id, q_idx, student_id))",
+        BIND_TABLE,
         "CREATE INDEX idx_topic_session ON topic(session_id)",
         "CREATE INDEX idx_run_session ON run(session_id)",
     )
 
+    const val BIND_TABLE =
+        "CREATE TABLE IF NOT EXISTS student_dev(student_id INTEGER PRIMARY KEY REFERENCES student(id) ON DELETE CASCADE, cid TEXT NOT NULL)"
+    const val BIND_ALL = "SELECT student_id, cid FROM student_dev"
+    const val BIND_SET = "INSERT OR REPLACE INTO student_dev(student_id, cid) VALUES(?, ?)"
+    const val BIND_CLEAR = "DELETE FROM student_dev WHERE student_id = ?"
     const val CLOSE_DANGLING = "UPDATE session SET ended = started WHERE ended = 0"
     const val ROSTER_ALL = "SELECT id, name FROM student ORDER BY name COLLATE NOCASE"
     const val ROSTER_FIND = "SELECT id, name FROM student WHERE name = ?"
@@ -75,7 +81,7 @@ object Sql {
  */
 class SqliteStore(context: Context) : Store {
 
-    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx, "bujhechhi.db", null, 1) {
+    private class Helper(ctx: Context) : SQLiteOpenHelper(ctx, "bujhechhi.db", null, 2) {
         override fun onConfigure(db: SQLiteDatabase) {
             super.onConfigure(db)
             db.setForeignKeyConstraintsEnabled(true)
@@ -86,7 +92,7 @@ class SqliteStore(context: Context) : Store {
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            // এখনও একটিই সংস্করণ
+            if (oldVersion < 2) db.execSQL(Sql.BIND_TABLE)
         }
 
         override fun onOpen(db: SQLiteDatabase) {
@@ -127,6 +133,22 @@ class SqliteStore(context: Context) : Store {
             c.moveToFirst()
             StudentRec(c.getLong(0), c.getString(1))
         }
+    }
+
+    override fun bindings(): Map<Long, String> = sync { db ->
+        db.rawQuery(Sql.BIND_ALL, null).use { c ->
+            val out = HashMap<Long, String>()
+            while (c.moveToNext()) out[c.getLong(0)] = c.getString(1)
+            out
+        }
+    }
+
+    override fun bindSet(studentId: Long, cid: String) {
+        sync { db -> db.execSQL(Sql.BIND_SET, arrayOf<Any>(studentId, cid)) }
+    }
+
+    override fun bindClear(studentId: Long) {
+        sync { db -> db.execSQL(Sql.BIND_CLEAR, arrayOf<Any>(studentId)) }
     }
 
     override fun rosterDelete(id: Long) {
