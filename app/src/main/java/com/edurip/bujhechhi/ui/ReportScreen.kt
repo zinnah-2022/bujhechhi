@@ -24,10 +24,12 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.edurip.bujhechhi.core.Report
+import com.edurip.bujhechhi.core.ScoreRow
 import com.edurip.bujhechhi.core.SessionReport
 import com.edurip.bujhechhi.server.ClassEngine
 import kotlinx.coroutines.Dispatchers
@@ -62,12 +64,10 @@ fun ReportScreen(sessionId: Long, onBack: () -> Unit) {
             Text("ক্লাসের রিপোর্ট", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 17.sp)
             val s = state
             if (s is ReportState.Ready) {
-                TextButton(onClick = {
-                    val send = Intent(Intent.ACTION_SEND)
-                    send.type = "text/plain"
-                    send.putExtra(Intent.EXTRA_TEXT, summaryText(s.r))
-                    ctx.startActivity(Intent.createChooser(send, "রিপোর্ট শেয়ার").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                }) { Text("শেয়ার") }
+                TextButton(onClick = { shareReport(ctx, summaryText(s.r), whatsapp = true) }) {
+                    Text("WhatsApp", color = Color(0xFF1FA855), fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { shareReport(ctx, summaryText(s.r), whatsapp = false) }) { Text("শেয়ার") }
             }
         }
         when (val s = state) {
@@ -180,23 +180,65 @@ private fun ReportBody(r: SessionReport) {
     }
 }
 
-private fun summaryText(r: SessionReport): String = buildString {
-    appendLine("📚 ${r.meta.title}")
-    appendLine(fmtDate(r.meta.startedAt))
-    appendLine("উপস্থিত: ${bn(r.attendeeNames.size)} জন")
-    appendLine()
-    r.topics.forEachIndexed { i, t ->
-        appendLine("${bn(i + 1)}) ${t.text}")
-        appendLine("   🟢 ${bn(t.green)}  🟡 ${bn(t.yellow)}  🔴 ${bn(t.red)}  ⚪ ${bn(t.none)}")
-        if (t.redNames.isNotEmpty()) appendLine("   বুঝেনি: ${t.redNames.joinToString(", ")}")
-    }
-    for (run in r.runs) {
+/**
+ * হোয়াটসঅ্যাপে পাঠানোর সারাংশ। *…* মোটা, _…_ বাঁকা। প্রশ্নের তালিকা নেই;
+ * আছে ক্লাসে কী পড়ানো হলো (নামসহ কারা বুঝেনি) আর প্রত্যেকের কুইজ স্কোর।
+ */
+internal fun summaryText(r: SessionReport): String = buildString {
+    appendLine("📚 *ক্লাসের সারাংশ*")
+    appendLine("*${r.meta.title}*")
+    val dur = if (r.meta.endedAt > r.meta.startedAt) "  ·  ⏱ ${fmtDuration(r.meta.endedAt - r.meta.startedAt)}" else ""
+    appendLine("📅 ${fmtDate(r.meta.startedAt)}$dur")
+    appendLine("👥 উপস্থিত: ${bn(r.attendeeNames.size)} জন")
+
+    if (r.topics.isNotEmpty()) {
         appendLine()
-        appendLine("📝 ${run.title}")
-        run.questions.forEachIndexed { i, q -> appendLine("   প্রশ্ন ${bn(i + 1)}: সঠিক ${bn(q.correctPct)}% (${bn(q.answered)} জন)") }
+        appendLine("📖 *ক্লাসে যা পড়ানো হয়েছে*")
+        r.topics.forEachIndexed { i, t ->
+            appendLine("${bn(i + 1)}) ${t.text}")
+            appendLine("     🟢 ${bn(t.green)}   🟡 ${bn(t.yellow)}   🔴 ${bn(t.red)}")
+            if (t.redNames.isNotEmpty()) appendLine("     _বুঝেনি:_ ${t.redNames.joinToString(", ")}")
+        }
     }
+
+    for (run in r.runs) {
+        if (run.scores.isEmpty()) continue
+        appendLine()
+        appendLine("📝 *${run.title} — কে কত পেয়েছে*")
+        val sorted = run.scores.sortedWith(compareByDescending<ScoreRow> { it.correct * 1000 / it.total.coerceAtLeast(1) }.thenBy { it.name })
+        sorted.forEachIndexed { i, sc ->
+            val key = sc.correct * 1000 / sc.total.coerceAtLeast(1)
+            val rank = sorted.indexOfFirst { it.correct * 1000 / it.total.coerceAtLeast(1) == key }
+            val medal = when (rank) { 0 -> "🥇"; 1 -> "🥈"; 2 -> "🥉"; else -> "▫️" }
+            val pct = sc.correct * 100 / sc.total.coerceAtLeast(1)
+            appendLine("$medal ${sc.name} — *${bn(sc.correct)}/${bn(sc.total)}* (${bn(pct)}%)")
+        }
+    }
+
     if (r.struggling.isNotEmpty()) {
         appendLine()
-        appendLine("👀 নজর দেওয়া দরকার: " + r.struggling.take(8).joinToString(", ") { it.name })
+        appendLine("👀 *নজর দেওয়া দরকার:* " + r.struggling.take(8).joinToString(", ") { it.name })
     }
+    appendLine()
+    append("_বুঝেছি? অ্যাপ থেকে পাঠানো_")
+}
+
+/** সরাসরি WhatsApp (না থাকলে Business, তাও না থাকলে সাধারণ শেয়ার মেনু)। */
+private fun shareReport(ctx: android.content.Context, text: String, whatsapp: Boolean) {
+    fun intent(pkg: String?) = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text).apply {
+        if (pkg != null) setPackage(pkg)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    if (whatsapp) {
+        for (pkg in listOf("com.whatsapp", "com.whatsapp.w4b")) {
+            try {
+                ctx.startActivity(intent(pkg))
+                return
+            } catch (e: android.content.ActivityNotFoundException) {
+                // পরেরটা চেষ্টা
+            }
+        }
+        android.widget.Toast.makeText(ctx, "WhatsApp পাওয়া যায়নি — সাধারণ শেয়ার খুলছে", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    ctx.startActivity(Intent.createChooser(intent(null), "রিপোর্ট শেয়ার").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
