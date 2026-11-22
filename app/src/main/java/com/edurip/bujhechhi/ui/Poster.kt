@@ -45,16 +45,16 @@ object Poster {
         y += text(c, "ক্লাসে যুক্ত হতে QR স্ক্যান করুন", 56f, 0f, W - 120, ink, bold = true, center = true, top = y, left = 60f)
 
         // ---- QR
-        val qr = 620
+        val qr = 480
         val qx = (W - qr) / 2f
         y += 14f
         val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = indigo; style = Paint.Style.STROKE; strokeWidth = 10f }
         c.drawRoundRect(RectF(qx - 22, y - 22, qx + qr + 22, y + qr + 22), 36f, 36f, frame)
         drawQr(c, url, qx, y, qr.toFloat())
-        y += qr + 50f
+        y += qr + 40f
 
         // ---- হাতে লেখার ঠিকানা
-        y += text(c, "QR না চললে ব্রাউজারে লিখুন:  $url", 38f, 0f, W - 120, soft, bold = false, center = true, top = y, left = 60f)
+        y += text(c, "QR না চললে ব্রাউজারে লিখুন:  $url", 32f, 0f, W - 120, soft, bold = false, center = true, top = y, left = 60f)
         y += 24f
 
         // ---- নির্দেশনা বক্স
@@ -66,14 +66,15 @@ object Poster {
             "৪.  নিজের নাম লিখে ক্লাসে যোগ দিন",
             "৫.  পড়া বুঝলে সবুজ, একটু বুঝলে হলুদ, না বুঝলে লাল বাটন চাপুন",
         )
-        var sy = boxTop + 34f
-        for (s in steps) sy += text(c, s, 40f, 0f, W - 200, ink, bold = false, center = false, top = sy, left = 100f) + 12f
+        var sy = boxTop + 28f
+        for (s in steps) sy += text(c, s, 34f, 0f, W - 200, ink, bold = false, center = false, top = sy, left = 100f) + 10f
         // বক্সটি হালকা দাগ দিয়ে ঘেরা
         val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#C7C9E6"); style = Paint.Style.STROKE; strokeWidth = 4f }
         c.drawRoundRect(RectF(60f, boxTop, W - 60f, sy + 10f), 28f, 28f, outline)
 
         // ---- রঙের সংকেত
-        val ly = sy + 50f
+        // নিচের আশ্বাস-লেখা (H-70) থেকে নিরাপদ দূরত্বে রাখা হয়, যাতে লেখার ওপর না চড়ে
+        val ly = minOf(sy + 44f, H - 190f)
         val dots = listOf(
             Triple("বুঝেছি", Color.parseColor("#16A34A"), 150f),
             Triple("একটু বুঝেছি", Color.parseColor("#D97706"), 480f),
