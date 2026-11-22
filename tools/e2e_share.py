@@ -43,6 +43,13 @@ with sync_playwright() as p:
     check("title shows page 1/3", "১/৩" in pg.locator("#vtitle").inner_text())
     check("save hidden by default", pg.locator("#vsave").is_hidden())
     pg.screenshot(path=f"{SHOTS}/s1_viewer.png")
+    # পূর্ণ পর্দা মোড
+    pg.locator("#vfull").click(); pg.wait_for_function("document.getElementById('viewer').classList.contains('full')")
+    check("fullscreen: top bar hidden, exit button shown", pg.locator(".vbar").is_hidden() and pg.locator("#vexit").is_visible())
+    box = pg.evaluate("(()=>{var r=document.getElementById('vstage').getBoundingClientRect();return [r.top,r.height]})()")
+    check("fullscreen: stage uses the whole screen", box[0] <= 1 and box[1] >= 800)
+    pg.locator("#vexit").click(); pg.wait_for_function("!document.getElementById('viewer').classList.contains('full')"); import time; time.sleep(0.5)
+    check("fullscreen: exit restores bar", pg.locator(".vbar").is_visible() and pg.locator("#vexit").is_hidden())
     w0 = pg.evaluate("document.getElementById('vwrap').getBoundingClientRect().width")
 
     # দুইবার ট্যাপে জুম
