@@ -152,7 +152,7 @@ class SqliteStore(context: Context) : Store {
     }
 
     override fun rosterDelete(id: Long) {
-        sync { db -> db.execSQL(Sql.ROSTER_DELETE, arrayOf<Any>(id)) }
+        sync { db -> db.execSQL(Sql.BIND_CLEAR, arrayOf<Any>(id)); db.execSQL(Sql.ROSTER_DELETE, arrayOf<Any>(id)) }
     }
 
     // ------------------------------------------------------------ ক্লাস

@@ -367,6 +367,9 @@ var sheetJoinedPending = false;
 function onErr(c) {
   var joinErrs = {
     taken: 'এই নামে অন্য ডিভাইসে আগেই যুক্ত আছে। শিক্ষককে জানান।',
+    owned: 'এই নামটি অন্য একটি ফোনের সাথে যুক্ত। এটা তোমার নাম হলে শিক্ষককে বলো — তিনি ছাড়িয়ে দিলে আবার যোগ দিতে পারবে।',
+    locked: 'শিক্ষক এখন নতুন যোগদান বন্ধ রেখেছেন। শিক্ষককে বলো।',
+    blocked: 'এই ফোন থেকে ক্লাসে যোগ দেওয়া বন্ধ আছে। শিক্ষকের সাথে কথা বলো।',
     limit: 'এক ফোনে সর্বোচ্চ ৬ জন যোগ করা যায়।',
     badname: 'সঠিক নাম লিখুন।',
     full: 'ক্লাসে আর জায়গা নেই।'
@@ -631,7 +634,7 @@ function renderSugs() {
   if (!roster.length) { w.innerHTML = ''; return; }
   var h = '<div class="sugh">তালিকা থেকে নিজের নাম বেছে নিতে পারো:</div><div class="sugs">';
   list.forEach(function (r) {
-    h += '<button type="button" class="sug" data-name="' + esc(r.n) + '"' + (r.j ? ' disabled' : '') + '>' + esc(r.n) + '</button>';
+    h += '<button type="button" class="sug" data-name="' + esc(r.n) + '"' + (r.j && !r.m ? ' disabled' : '') + (r.m ? ' style="outline:2px solid var(--acc)"' : '') + '>' + (r.m ? '✓ ' : '') + esc(r.n) + '</button>';
   });
   w.innerHTML = h + (list.length ? '' : '<span class="sugh">মিলছে না — নিজের নাম লিখে “যোগ দিন” চাপুন</span>') + '</div>';
 }

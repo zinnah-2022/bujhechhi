@@ -52,7 +52,7 @@ fun main() {
     // second device
     core.onMessage("c2", """{"t":"hello","cid":"device-bbbb","code":"${s.code}"}""")
     core.onMessage("c2", """{"t":"join","name":"রিয়া"}""")
-    check("name taken by online device", tr.last("c2", "err")?.str("c") == "taken")
+    check("name bound to another phone is refused", tr.last("c2", "err")?.str("c") == "owned")
     core.onMessage("c2", """{"t":"join","name":"করিম"}""")
     core.onMessage("c2", """{"t":"join","name":"নাজমা"}""")
     core.onMessage("c2", """{"t":"join","name":"রফিক"}""")
@@ -93,7 +93,7 @@ fun main() {
 
     // roster request
     core.onMessage("c3", """{"t":"roster"}""")
-    check("roster list", tr.last("c3", "roster")!!["list"].asList()!!.size == 5)
+    run { val l = tr.last("c3", "roster")!!["list"].asList()!!; println("ROSTER " + l.map { it.asMap()!!.str("n") + ":" + it.asMap()!!["m"] }); check("roster hides names bound to other phones", l.none { it.asMap()!!.str("n") == "করিম" }) }
 
     // quiz (step)
     val qs = listOf(
@@ -165,7 +165,26 @@ fun main() {
     core.onClose("c2")
     core.onMessage("c9", """{"t":"hello","cid":"device-cccc","code":"${s.code}"}""")
     core.onMessage("c9", """{"t":"join","name":"করিম"}""")
-    check("takeover when old device offline", tr.last("c9", "joined") != null)
+    check("no takeover even if old phone offline", tr.last("c9", "err")?.str("c") == "owned")
+    // teacher releases the name -> new phone can claim it
+    val karimSid = core.snapshot().students.first { it.name == "করিম" }.sid
+    core.release(karimSid)
+    core.onMessage("c9", """{"t":"join","name":"করিম"}""")
+    check("release lets another phone claim", tr.last("c9", "joined") != null)
+    // returning device is auto-joined with no input
+    core.onClose("c9")
+    core.onMessage("c9b", """{"t":"hello","cid":"device-cccc","code":"${s.code}"}""")
+    check("auto-join returning device", tr.last("c9b", "state")!!["profiles"].asList()!!.any { it.asMap()!!.str("name") == "করিম" })
+    // join lock: new names refused, bound device still fine
+    core.setJoinLocked(true)
+    core.onMessage("c9b", """{"t":"join","name":"নতুন নাম"}""")
+    check("join lock blocks new names", tr.last("c9b", "err")?.str("c") == "locked")
+    core.setJoinLocked(false)
+    // kick + block
+    core.kick(karimSid, true)
+    check("blocked phone gets err", tr.last("c9b", "err")?.str("c") == "blocked")
+    core.onMessage("c9c", """{"t":"hello","cid":"device-cccc","code":"${s.code}"}""")
+    check("blocked phone cannot reconnect", tr.last("c9c", "err")?.str("c") == "blocked")
 
     // report
     val endedId = core.endSession()
@@ -196,7 +215,7 @@ fun unicodeTest() {
     core.onMessage("a", Json.write(mapOf("t" to "join", "name" to "রিয়া")))  // precomposed য়
     core.onMessage("b", """{"t":"hello","cid":"device-bbbb","code":"${s.code}"}""")
     core.onMessage("b", Json.write(mapOf("t" to "join", "name" to "রিয়া"))) // য + nukta
-    check("bengali ya-nukta forms map to the same student", tr.last("b", "err")?.str("c") == "taken" && core.snapshot().students.size == 1)
+    check("bengali ya-nukta forms map to the same student", tr.last("b", "err")?.str("c") == "owned" && core.snapshot().students.size == 1)
 }
 
 fun shareTest() {

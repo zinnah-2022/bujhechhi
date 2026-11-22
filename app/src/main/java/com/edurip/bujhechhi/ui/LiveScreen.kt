@@ -269,10 +269,20 @@ private fun FeedbackTab(live: LiveSnapshot) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    ClassEngine.core.kick(s.sid)
-                    selected = null
-                }) { Text("ক্লাস থেকে সরান", color = Red) }
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = {
+                        ClassEngine.core.kick(s.sid)
+                        selected = null
+                    }) { Text("ক্লাস থেকে সরান", color = Red) }
+                    TextButton(onClick = {
+                        ClassEngine.core.kick(s.sid, block = true)
+                        selected = null
+                    }) { Text("সরান ও এই ফোন ব্লক", color = Red) }
+                    TextButton(onClick = {
+                        ClassEngine.core.release(s.sid)
+                        selected = null
+                    }) { Text("নাম ফোন থেকে ছাড়ুন") }
+                }
             },
             dismissButton = { TextButton(onClick = { selected = null }) { Text("বন্ধ") } },
         )
@@ -647,6 +657,13 @@ private fun ConnectTab(live: LiveSnapshot, net: NetInfo) {
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
             )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("🔒 নতুন যোগদান বন্ধ", fontWeight = FontWeight.Bold)
+                    Muted("চালু থাকলে শুধু আগে থেকে যুক্ত ফোনগুলো ঢুকতে পারবে; নতুন কেউ নয়।", size = 13)
+                }
+                Switch(checked = live.joinLocked, onCheckedChange = { ClassEngine.core.setJoinLocked(it) })
+            }
             Muted("কোডটি প্রতিটি ক্লাস শুরুতে নিজে থেকে নতুন র‍্যান্ডম ৪ অঙ্কে তৈরি হয়। বোর্ডে লিখে দিন বা বলে দিন।", size = 13)
             OutlinedButton(
                 onClick = {

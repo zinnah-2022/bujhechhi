@@ -60,10 +60,10 @@ data class LiveSnapshot(
     val red: Int,
     val none: Int,
     val alertSeq: Int,
-    val joinLocked: Boolean = false,
     val quiz: LiveQuiz?,
     val share: LiveShare? = null,
     val cast: LiveCast? = null,
+    val joinLocked: Boolean = false,
 ) {
     companion object {
         val EMPTY = LiveSnapshot(
@@ -145,6 +145,12 @@ class ClassCore(
     private val fb = HashMap<Long, String>()
     private var run: QuizRun? = null
     private var lastResult: QuizResult? = null
+
+    // নাম ↔ ফোন বাঁধন: প্রথমবার যে ফোনে (cid) ঢুকেছে নামটা সেই ফোনের; অন্য ফোন ঢুকতে পারে না
+    private val bindings = HashMap<Long, String>()
+    private val blockedCids = HashSet<String>()
+    private val kickedSids = HashSet<Long>()
+    private var joinLocked = false
     private var alertLatched = false
     private var alertSeq = 0
     private val roster = ArrayList<StudentRec>()

@@ -95,7 +95,7 @@ with sync_playwright() as p:
     pg2.wait_for_selector("#sheet:not([hidden])")
     pg2.fill("#nameIn", "রিয়া")
     pg2.click("#joinBtn")
-    pg2.wait_for_selector("#sheetErr:has-text('অন্য ডিভাইসে')")
+    pg2.wait_for_selector("#sheetErr:has-text('অন্য একটি ফোনের')")
     check("same name on another online phone is refused", True)
     pg2.fill("#nameIn", "করিম")
     pg2.click("#joinBtn")
