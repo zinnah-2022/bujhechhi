@@ -74,7 +74,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 
-private val PEN_COLORS = listOf("#DC2626", "#2563EB", "#16A34A", "#111827")
+internal val PEN_COLORS = listOf("#DC2626", "#2563EB", "#16A34A", "#111827")
 private const val MAX_PAGES = 20
 
 /** "প্রশ্ন শেয়ার" ট্যাব: ছবি/PDF শেয়ার, পাতা, দেখান/লুকান, সেভের অনুমতি ও লাইভ দাগ। */
@@ -170,6 +170,7 @@ private fun ShareControls(
     var drawing by rememberSaveable { mutableStateOf(false) }
     var color by rememberSaveable { mutableStateOf(PEN_COLORS[0]) }
     var confirmNew by remember { mutableStateOf(false) }
+    var full by remember { mutableStateOf(false) }
 
     val bmp = remember(share.id, share.page) {
         val f = File(ctx.filesDir, "share/${share.id}/${share.page}.jpg")
@@ -224,68 +225,9 @@ private fun ShareControls(
         BjCard(Modifier.fillMaxWidth()) { Muted("ছবি দেখানো যাচ্ছে না। নতুন করে শেয়ার করুন।") }
     } else {
         val ratio = bmp.width.toFloat() / bmp.height.toFloat()
-        val shape = RoundedCornerShape(12.dp)
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .aspectRatio(ratio)
-                .clip(shape)
-                .border(2.dp, if (drawing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, shape)
-                .background(Color.White),
-        ) {
-            Image(bmp, contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())
-            Canvas(
-                Modifier
-                    .fillMaxSize()
-                    .pointerInput(drawing, color, share.id, share.page) {
-                        if (!drawing) return@pointerInput
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            down.consume()
-                            val w = size.width.toFloat().coerceAtLeast(1f)
-                            val h = size.height.toFloat().coerceAtLeast(1f)
-                            fun nx(o: Offset) = (o.x / w).toDouble()
-                            fun ny(o: Offset) = (o.y / h).toDouble()
-                            val k = ClassEngine.core.shareDrawStart(color, listOf(nx(down.position), ny(down.position)))
-                            val pending = ArrayList<Double>()
-                            var lastSend = System.currentTimeMillis()
-                            while (true) {
-                                val ev = awaitPointerEvent()
-                                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
-                                if (k >= 0 && ch.pressed) {
-                                    pending.add(nx(ch.position)); pending.add(ny(ch.position))
-                                    val now = System.currentTimeMillis()
-                                    if (now - lastSend >= 80 && pending.isNotEmpty()) {
-                                        ClassEngine.core.shareDrawMore(k, ArrayList(pending))
-                                        pending.clear(); lastSend = now
-                                    }
-                                }
-                                ch.consume()
-                                if (!ch.pressed) break
-                            }
-                            if (k >= 0 && pending.isNotEmpty()) ClassEngine.core.shareDrawMore(k, ArrayList(pending))
-                        }
-                    },
-            ) {
-                val sw = size.width * 0.006f
-                share.strokes.forEach { s ->
-                    val c = try { Color(AndroidColor.parseColor(s.color)) } catch (e: Exception) { Color.Red }
-                    val p = s.pts
-                    if (p.size == 2) {
-                        drawCircle(c, radius = sw / 2f, center = Offset((p[0] * size.width).toFloat(), (p[1] * size.height).toFloat()))
-                    } else if (p.size >= 4) {
-                        val path = androidx.compose.ui.graphics.Path()
-                        path.moveTo((p[0] * size.width).toFloat(), (p[1] * size.height).toFloat())
-                        var i = 2
-                        while (i + 1 < p.size) {
-                            path.lineTo((p[i] * size.width).toFloat(), (p[i + 1] * size.height).toFloat())
-                            i += 2
-                        }
-                        drawPath(path, c, style = Stroke(width = sw, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                    }
-                }
-            }
-        }
+        SharePreview(bmp, share, drawing, color, Modifier.fillMaxWidth().aspectRatio(ratio), onFull = { full = true })
+        Muted("দুই আঙুলে জুম · দুইবার ট্যাপে বড়/ছোট · ⛶ চাপলে পুরো পর্দা", size = 12)
+        if (full) ShareFullscreen(share, bmp, drawing, { drawing = it }, color, { color = it }, { full = false })
     }
 
     // দাগ দেওয়ার যন্ত্র
@@ -295,7 +237,7 @@ private fun ShareControls(
             Switch(checked = drawing, onCheckedChange = { drawing = it })
         }
         Muted(
-            if (drawing) "ছবির ওপর আঙুল টানলে সবার ফোনে লাইভ দাগ দেখা যাবে।" else "চালু করলে ছবির ওপর আঙুল দিয়ে দাগ/বৃত্ত দিতে পারবেন (তখন এই পাতা স্ক্রল হবে না)।",
+            if (drawing) "এক আঙুলে দাগ, দুই আঙুলে জুম। সবার ফোনে লাইভ দেখা যাবে।" else "চালু করলে ছবির ওপর আঙুল দিয়ে দাগ/বৃত্ত দিতে পারবেন (তখন এই পাতা স্ক্রল হবে না)।",
             size = 13,
         )
         if (drawing) {

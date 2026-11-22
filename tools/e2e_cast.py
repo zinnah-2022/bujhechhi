@@ -43,6 +43,13 @@ with sync_playwright() as p:
     pg.wait_for_function("document.getElementById('vimg').src.startsWith('blob:') && document.getElementById('vimg').naturalWidth > 0")
     check("first frame shown", pg.evaluate("document.getElementById('vwrap').style.visibility") == "visible")
     pg.screenshot(path=f"{SHOTS}/c1_cast.png")
+    # পূর্ণ পর্দা মোড
+    pg.locator("#vfull").click(); pg.wait_for_function("document.getElementById('viewer').classList.contains('full')")
+    check("cast fullscreen: top bar hidden, exit button shown", pg.locator(".vbar").is_hidden() and pg.locator("#vexit").is_visible())
+    box = pg.evaluate("(()=>{var r=document.getElementById('vstage').getBoundingClientRect();return [r.top,r.height]})()")
+    check("cast fullscreen: stage uses the whole screen", box[0] <= 1 and box[1] >= 800)
+    pg.locator("#vexit").click(); pg.wait_for_function("!document.getElementById('viewer').classList.contains('full')"); import time; time.sleep(0.5)
+    check("cast fullscreen: exit restores bar", pg.locator(".vbar").is_visible() and pg.locator("#vexit").is_hidden())
     src1 = pg.evaluate("document.getElementById('vimg').src")
 
     # নতুন ফ্রেম এলে ছবি বদলায়
