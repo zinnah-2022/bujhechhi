@@ -130,9 +130,25 @@ fun main() {
     check("last question: quizNext false at end", core.quizNext() && !core.quizNext() || true)
     core.quizEnd()
     check("quiz ended -> state without quiz", tr.last("c3", "state")!!["quiz"] == null)
+    run {
+        // শেষ হলে সবার ফল: যে উত্তর দিয়েছে, আর যে যোগ দিয়েছে কিন্তু দেয়নি
+        val s3 = tr.last("c3", "state")!!
+        val top = s3["qr"].asMap()!!
+        check("result: top-level summary", top.int("n") == 2 && top.str("title") == "প্রাথমিক")
+        val riya = s3["profiles"].asList()!!.map { it.asMap()!! }.first { it.long("sid") == 100L }["qr"].asMap()!!
+        check("result: riya 2/2", riya.int("c") == 2 && riya.int("a") == 2 && riya.str("m") == "11")
+        val s2 = tr.last("c2", "state")!!
+        val ps = s2["profiles"].asList()!!.map { it.asMap()!! }
+        val karim = ps.first { it.long("sid") == sidKarim }["qr"].asMap()!!
+        val nazma = ps.first { it.long("sid") == sidNazma }["qr"].asMap()!!
+        check("result: karim wrong then skipped", karim.int("c") == 0 && karim.int("a") == 1 && karim.str("m") == "0-")
+        check("result: joined-but-silent student still gets a result (0 answered)", nazma.int("a") == 0 && nazma.str("m") == "--")
+        check("result: class average counts only takers", top.int("tk") == 2 && top.int("avg") == 50)
+    }
 
     // quiz (all)
     check("start all-mode quiz", core.startQuiz(set, "all", 10))
+    check("new quiz clears old result", tr.last("c3", "state")!!["qr"] == null)
     q = tr.last("c3", "state")!!["quiz"].asMap()!!
     check("all mode sends all questions, total time = 30s", q["qs"].asList()!!.size == 3 && q.long("remain") == 30_000L)
     core.onMessage("c3", """{"t":"ans","sid":100,"q":2,"o":0}""")

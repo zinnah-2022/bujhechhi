@@ -111,6 +111,10 @@ class ClassCore(
         val revealed = LinkedHashSet<Int>()
     }
 
+    /** কুইজ শেষের ফল: প্রত্যেকের জন্য সঠিক/উত্তর দেওয়া সংখ্যা ও প্রশ্নভিত্তিক চিহ্ন ("1" ঠিক, "0" ভুল, "-" দেয়নি)। */
+    private class ProfRes(val correct: Int, val answered: Int, val marks: String)
+    private class QuizResult(val id: Long, val title: String, val n: Int, val per: Map<Long, ProfRes>, val avgPct: Int, val takers: Int)
+
     private class Stroke(val k: Int, val color: String) {
         val pts = ArrayList<Double>()
     }
@@ -139,6 +143,7 @@ class ClassCore(
     private val topicHistory = ArrayList<String>()
     private val fb = HashMap<Long, String>()
     private var run: QuizRun? = null
+    private var lastResult: QuizResult? = null
     private var alertLatched = false
     private var alertSeq = 0
     private val roster = ArrayList<StudentRec>()
@@ -197,7 +202,7 @@ class ClassCore(
         val info = SessionInfo(id, t, code, now)
         session = info
         participants.clear(); nameIndex.clear(); devices.clear(); connToCid.clear()
-        topic = null; topicNo = 0; topicHistory.clear(); fb.clear(); run = null; share = null; castOn = false; castPaused = false
+        topic = null; topicNo = 0; topicHistory.clear(); fb.clear(); run = null; lastResult = null; share = null; castOn = false; castPaused = false
         alertLatched = false
         roster.clear(); roster.addAll(store.rosterAll())
         dirty = true
@@ -218,7 +223,7 @@ class ClassCore(
         store.sessionEnd(s.id, clock())
         session = null
         participants.clear(); nameIndex.clear(); devices.clear(); connToCid.clear()
-        topic = null; fb.clear(); run = null; share = null; castOn = false; castPaused = false
+        topic = null; fb.clear(); run = null; lastResult = null; share = null; castOn = false; castPaused = false
         dirty = true
         return s.id
     }
@@ -260,6 +265,7 @@ class ClassCore(
         val totalSecs = if (m == "all") secs.toLong() * set.questions.size else secs.toLong()
         r.endsAt = clock() + totalSecs * 1000
         run = r
+        lastResult = null
         broadcastState()
         true
     }
@@ -291,9 +297,39 @@ class ClassCore(
     }
 
     fun quizEnd() = locked {
-        if (run == null) return@locked
+        val r = run ?: return@locked
+        lastResult = buildResult(r)
         run = null
         broadcastState()
+    }
+
+    /** শেষ হওয়ার মুহূর্তে সবার ফল: যে যোগ দিয়েছে কিন্তু উত্তর দেয়নি, তার ফলও (০) থাকে। */
+    private fun buildResult(r: QuizRun): QuizResult? {
+        val qs = r.set.questions
+        val asked = if (r.mode == "all") qs.size else {
+            val curTouched = r.status == "reveal" || r.answers.values.any { it.containsKey(r.cur) }
+            if (curTouched) r.cur + 1 else r.cur
+        }
+        if (asked <= 0) return null
+        val per = HashMap<Long, ProfRes>()
+        var sumPct = 0
+        var takers = 0
+        for (sid in participants.keys) {
+            val mine = r.answers[sid]
+            var c = 0
+            var a = 0
+            val sb = StringBuilder()
+            for (i in 0 until asked) {
+                val o = mine?.get(i)
+                if (o == null) sb.append('-') else {
+                    a++
+                    if (o == qs[i].correct) { c++; sb.append('1') } else sb.append('0')
+                }
+            }
+            per[sid] = ProfRes(c, a, sb.toString())
+            if (a > 0) { sumPct += c * 100 / asked; takers++ }
+        }
+        return QuizResult(r.runId, r.set.title, asked, per, if (takers > 0) sumPct / takers else 0, takers)
     }
 
     /** প্রতি সেকেন্ডে হোস্ট এটা ডাকবে: সময় শেষ হলে উত্তর বন্ধ। */
@@ -662,6 +698,8 @@ class ClassCore(
                 if (mine != null) for ((k, v) in mine) a[k.toString()] = v
                 m["a"] = a
             }
+            val pr = lastResult?.per?.get(sid)
+            if (r == null && pr != null) m["qr"] = mapOf("c" to pr.correct, "a" to pr.answered, "m" to pr.marks)
             m
         }
         val quiz: Any? = if (r == null) {
@@ -705,6 +743,7 @@ class ClassCore(
                 "topic" to (t?.text ?: ""),
                 "profiles" to profiles,
                 "quiz" to quiz,
+                "qr" to lastResult?.let { mapOf("id" to it.id, "title" to it.title, "n" to it.n, "avg" to it.avgPct, "tk" to it.takers) },
                 "sh" to shareView,
                 "sc" to (if (castOn) mapOf("p" to (if (castPaused) 1 else 0)) else null),
             ),

@@ -112,6 +112,27 @@ header h1{font-size:18px;margin:0;font-weight:700;flex:1;white-space:nowrap;over
 .opt.wrong{border-color:var(--r);background:var(--rs)} .opt.wrong b{background:var(--r);border-color:var(--r);color:#fff} .opt.wrong em{color:var(--r)}
 .expl{margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--accsoft);font-size:16px}
 .expl b{color:var(--acc)}
+
+.res{margin-top:6px;text-align:center}
+.rhero{border-radius:26px;padding:26px 18px 22px;color:#fff;box-shadow:var(--shadow);background:linear-gradient(135deg,var(--acc),var(--acc2))}
+.rhero.top{background:linear-gradient(135deg,#16a34a,#22c55e)} .rhero.mid{background:linear-gradient(135deg,#4338ca,#6366f1)}
+.rhero.low{background:linear-gradient(135deg,#d97706,#f59e0b)} .rhero.none{background:linear-gradient(135deg,#64748b,#94a3b8)}
+.rhero .em{font-size:60px;line-height:1.1} .rhero .msg{font-size:22px;font-weight:800;margin-top:4px}
+.rhero .qt2{opacity:.9;font-size:15px;margin-top:2px}
+.ring{--p:0;width:190px;height:190px;border-radius:50%;margin:18px auto 6px;display:flex;align-items:center;justify-content:center;
+  background:conic-gradient(#fff calc(var(--p)*1%),rgba(255,255,255,.28) 0)}
+.ring i{font-style:normal;width:156px;height:156px;border-radius:50%;background:rgba(20,20,60,.28);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.rhero.top .ring i{background:#15803d}.rhero.mid .ring i{background:#3b32b8}.rhero.low .ring i{background:#b45309}.rhero.none .ring i{background:#556275}
+.ring b{font-size:58px;line-height:1;font-weight:900} .ring small{font-size:16px;opacity:.92;margin-top:4px;font-weight:700}
+.rchips{display:flex;gap:10px;margin-top:14px}
+.rchips div{flex:1;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 4px;box-shadow:var(--shadow)}
+.rchips b{display:block;font-size:26px;font-weight:900} .rchips span{font-size:14px;color:var(--mute)}
+.rchips .ok b{color:var(--g)} .rchips .no b{color:var(--r)} .rchips .sk b{color:var(--mute)}
+.rdots{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:14px;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:18px}
+.rdots span{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff}
+.rdots .y{background:var(--g)} .rdots .n{background:var(--r)} .rdots .s{background:var(--mute);opacity:.6}
+.ravg{margin-top:12px;color:var(--mute);font-size:15px}
+.rok{margin-top:16px;width:100%;padding:15px;border-radius:16px;background:var(--acc);color:#fff;font-weight:800;font-size:18px}
 .score{margin-top:16px;text-align:center;font-size:20px;font-weight:800;padding:16px;border-radius:18px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
 .prog{margin:12px 4px 0;color:var(--mute);font-size:14.5px;text-align:center}
 
@@ -431,12 +452,42 @@ function liveScreen() {
     h += '<button class="tab add" data-act="add">＋ আরেকজন</button></div>';
   }
   if (P) {
-    h += (S.quiz ? quizView(P) : feedbackView(P));
+    h += (S.quiz ? quizView(P) : showResult(P) ? resultView(P) : feedbackView(P));
     h += '<button class="link" data-act="leave">ভুল নাম? “' + esc(P.name) + '” সরিয়ে দিন</button>';
   }
   h += '</div>';
   return h;
 }
+
+
+// কুইজ শেষে ফলাফল: বড় করে নিজের স্কোর। উত্তর না দিলেও (যোগ দিলেই) দেখায়।
+var qrSeen = {};
+function resultView(P) {
+  var r = P.qr, n = S.qr.n, pct = n ? Math.round(r.c * 100 / n) : 0;
+  var cls, em, msg;
+  if (r.a === 0) { cls = 'none'; em = '🙋'; msg = 'এবার তুমি উত্তর দাওনি'; }
+  else if (pct >= 80) { cls = 'top'; em = '🏆'; msg = 'অসাধারণ, ' + P.name + '!'; }
+  else if (pct >= 60) { cls = 'mid'; em = '🎉'; msg = 'খুব ভালো করেছ!'; }
+  else if (pct >= 40) { cls = 'mid'; em = '👍'; msg = 'ভালো চেষ্টা!'; }
+  else { cls = 'low'; em = '💪'; msg = 'আরেকটু চেষ্টা করলেই হবে!'; }
+  var wrong = r.a - r.c, skip = n - r.a;
+  var h = '<div class="res"><div class="rhero ' + cls + '"><div class="em">' + em + '</div><div class="msg">' + esc(msg) + '</div>' +
+    '<div class="qt2">📝 ' + esc(S.qr.title) + '</div>' +
+    '<div class="ring" style="--p:' + (r.a === 0 ? 0 : pct) + '"><i><b>' + bn(r.c) + '/' + bn(n) + '</b><small>' + bn(pct) + '%</small></i></div></div>';
+  h += '<div class="rchips"><div class="ok"><b>' + bn(r.c) + '</b><span>✓ সঠিক</span></div>' +
+    '<div class="no"><b>' + bn(wrong) + '</b><span>✕ ভুল</span></div>' +
+    '<div class="sk"><b>' + bn(skip) + '</b><span>– বাদ</span></div></div>';
+  h += '<div class="rdots">';
+  for (var i = 0; i < n; i++) {
+    var ch = (r.m || '')[i];
+    h += '<span class="' + (ch === '1' ? 'y' : ch === '0' ? 'n' : 's') + '">' + bn(i + 1) + '</span>';
+  }
+  h += '</div>';
+  if (S.qr.tk > 0) h += '<div class="ravg">ক্লাসের গড়: ' + bn(S.qr.avg) + '%</div>';
+  h += '<button class="rok" data-act="qrok">ঠিক আছে ✓</button></div>';
+  return h;
+}
+function showResult(P) { return !!(S.qr && P && P.qr && !S.quiz && !qrSeen[P.sid + ':' + S.qr.id]); }
 
 function feedbackView(P) {
   var has = !!S.topic;
@@ -516,6 +567,7 @@ document.addEventListener('click', function (e) {
   if (act === 'code') { submitCode(); }
   else if (act === 'tab') { active = Number(el.getAttribute('data-sid')); render(); }
   else if (act === 'add') { openSheet(); }
+  else if (act === 'qrok' && P && S.qr) { qrSeen[P.sid + ':' + S.qr.id] = true; render(); }
   else if (act === 'fb' && P) {
     var v = el.getAttribute('data-v');
     if (!send({ t: 'fb', sid: P.sid, v: v })) { toast('সংযোগ নেই, একটু অপেক্ষা করুন'); return; }
