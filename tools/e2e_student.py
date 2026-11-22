@@ -130,8 +130,11 @@ with sync_playwright() as p:
     check("next question shown", True)
     ctl("extend 5")
     ctl("quizend")
+    pg.wait_for_selector(".rhero")
+    check("result card shown when quiz ends", True)
+    pg.locator(".rok").click()
     pg.wait_for_selector(".fbs")
-    check("back to feedback after quiz", True)
+    check("back to feedback after dismissing result", True)
 
     # ৭. রিলোড করলে প্রোফাইল ফিরে আসে
     pg.reload()
